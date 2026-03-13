@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import bcrypt from 'bcryptjs'
+import bcrypt from 'bcryptjs';
 
 const usuarioSchema = mongoose.Schema({
     nombre: {
@@ -16,32 +16,42 @@ const usuarioSchema = mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        trim: true
+        trim: true,
+        lowercase: true
     },
     role: {
         type: String,
-        enum: ['aprendiz', 'instructor', 'coordinador', 'otro'],
+        enum: ['aprendiz', 'instructor', 'coordinador', 'funcionario'],
         default: 'aprendiz'
     },
-
-    token: {
+    tipo_instructor: {
         type: String,
+        enum: ['tecnico', 'empresarial', 'full_popular', null],
+        default: null
     },
-    confirmado: {
-        type: Boolean,
-        default: false
+    // 👇 NUEVO CAMPO
+    coordinador_asignado: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Usuario',
+        required: function() {
+            return this.role === 'instructor';
+        }
     },
+    instructores_asociados: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Usuario'
+    }]
 }, {
     timestamps: true,
-}
-);
+});
+
 usuarioSchema.pre("save", async function(next) {
     if (!this.isModified("password")) {
-        next();
+        return next();
     }
-
-    const salt = await bcryot.genSalt(10);
-    this.password = await bcryot.hash(this.password, salt);
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
 });
 
 usuarioSchema.methods.comprobarPassword = async function(passwordFormulario) {
@@ -49,5 +59,4 @@ usuarioSchema.methods.comprobarPassword = async function(passwordFormulario) {
 };
 
 const Usuario = mongoose.model("Usuario", usuarioSchema);
-
 export default Usuario;
