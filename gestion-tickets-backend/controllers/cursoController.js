@@ -8,40 +8,33 @@ import ProgramaEspecial from '../models/ProgramaEspecial.js';
 import SectorCentro from '../models/SectorCentro.js';
 import Usuario from '../models/Usuario.js';
 
-// ============================================
-// FUNCIONES PARA REFERENCIAS
-// ============================================
+// ============================================================
+// REFERENCIAS
+// ============================================================
 
 export const getReferencias = async (req, res) => {
     try {
-        const [programas, modalidades, tiposPrograma, tiposOferta, programasEspeciales, sectores] = await Promise.all([
-            ProgramaFormacion.find().select('nombre codigo'),
-            Modalidad.find().select('nombre'),
-            TipoPrograma.find().select('nombre'),
-            TipoOferta.find().select('nombre'),
-            ProgramaEspecial.find().select('nombre codigo'),
-            SectorCentro.find().select('nombre')
-        ]);
+        const [programas, modalidades, tiposPrograma, tiposOferta, programasEspeciales, sectores] =
+            await Promise.all([
+                ProgramaFormacion.find().select('nombre codigo'),
+                Modalidad.find().select('nombre'),
+                TipoPrograma.find().select('nombre'),
+                TipoOferta.find().select('nombre'),
+                ProgramaEspecial.find().select('nombre codigo'),
+                SectorCentro.find().select('nombre')
+            ]);
 
-        res.json({
-            programas,
-            modalidades,
-            tiposPrograma,
-            tiposOferta,
-            programasEspeciales,
-            sectores
-        });
+        res.json({ programas, modalidades, tiposPrograma, tiposOferta, programasEspeciales, sectores });
     } catch (error) {
         console.error('Error en getReferencias:', error);
         res.status(500).json({ msg: 'Error al cargar datos de referencia' });
     }
 };
 
+// ✅ FIX: busca por role 'coordinador' (igual que antes) y devuelve { coordinadores }
 export const getCoordinadores = async (req, res) => {
     try {
-        const coordinadores = await Usuario.find({ role: 'coordinador' })
-            .select('nombre email');
-        
+        const coordinadores = await Usuario.find({ role: 'coordinador' }).select('nombre email');
         res.json({ coordinadores });
     } catch (error) {
         console.error('Error en getCoordinadores:', error);
@@ -49,9 +42,9 @@ export const getCoordinadores = async (req, res) => {
     }
 };
 
-// ============================================
-// FUNCIONES PARA CREAR CURSOS
-// ============================================
+// ============================================================
+// CREAR CURSOS
+// ============================================================
 
 export const crearCursoRegular = async (req, res) => {
     try {
@@ -66,47 +59,72 @@ export const crearCursoRegular = async (req, res) => {
             tipo_oferta,
             cupo_maximo,
             coordinador_asignado,
-            fechas_ejecucion,
-            documentos,
-            ...otrosCampos
+            fechas,
+            ambiente,
+            ubicacion,
+            horario,
+            empresa_solicitante,
+            convenio,
+            subsector_economico,
+            datos_regular,
         } = req.body;
 
-        // Crear curso con datos mínimos
+        // ✅ FIX: validación explícita con mensaje claro por campo
+        const faltantes = [];
+        if (!programa_formacion)   faltantes.push('programa_formacion');
+        if (!modalidad)            faltantes.push('modalidad');
+        if (!tipo_programa)        faltantes.push('tipo_programa');
+        if (!tipo_oferta)          faltantes.push('tipo_oferta');
+        if (!cupo_maximo)          faltantes.push('cupo_maximo');
+        if (!coordinador_asignado) faltantes.push('coordinador_asignado');
+
+        if (faltantes.length > 0) {
+            return res.status(400).json({
+                msg: `Faltan campos obligatorios: ${faltantes.join(', ')}`
+            });
+        }
+
+        const datosRegular = {
+            fechas_ejecucion: datos_regular?.fechas_ejecucion || [],
+            documentos:       datos_regular?.documentos       || []
+        };
+
         const cursoData = {
             programa_formacion,
             modalidad,
             tipo_programa,
             tipo_oferta,
             cupo_maximo,
+            cupos_disponibles:    cupo_maximo,
             coordinador_asignado,
-            creado_por: req.usuario._id,
-            estado: 'pendiente',
-            datos_regular: {
-                fechas_ejecucion: fechas_ejecucion || [],
-                documentos: documentos || []
-            },
-            ...otrosCampos
+            creado_por:           req.usuario._id,
+            estado:               'pendiente',
+            datos_regular:        datosRegular,
+            ...(fechas              && { fechas }),
+            ...(ambiente            && { ambiente }),
+            ...(ubicacion           && { ubicacion }),
+            ...(horario             && { horario }),
+            ...(empresa_solicitante && { empresa_solicitante }),
+            ...(convenio            && { convenio }),
+            ...(subsector_economico && { subsector_economico }),
         };
 
         const curso = new Curso(cursoData);
         await curso.save();
 
         await curso.populate([
-            { path: 'programa_formacion', select: 'nombre codigo' },
-            { path: 'modalidad', select: 'nombre' },
-            { path: 'tipo_programa', select: 'nombre' },
-            { path: 'tipo_oferta', select: 'nombre' },
-            { path: 'coordinador_asignado', select: 'nombre email' }
+            { path: 'programa_formacion',  select: 'nombre codigo' },
+            { path: 'modalidad',           select: 'nombre' },
+            { path: 'tipo_programa',       select: 'nombre' },
+            { path: 'tipo_oferta',         select: 'nombre' },
+            { path: 'coordinador_asignado',select: 'nombre email' }
         ]);
 
-        res.status(201).json({
-            msg: '✅ Curso regular creado exitosamente',
-            curso
-        });
+        res.status(201).json({ msg: '✅ Curso regular creado exitosamente', curso });
 
     } catch (error) {
         console.error('Error en crearCursoRegular:', error);
-        res.status(500).json({ msg: 'Error al crear el curso' });
+        res.status(500).json({ msg: 'Error al crear el curso', error: error.message });
     }
 };
 
@@ -123,15 +141,43 @@ export const crearCursoCampesena = async (req, res) => {
             tipo_oferta,
             cupo_maximo,
             coordinador_asignado,
-            programa_especial,
-            sector_centro,
-            instructor_tecnico,
-            instructor_empresarial,
-            instructor_full_popular,
-            fechas_curso,
-            documentos,
-            ...otrosCampos
+            fechas,
+            ambiente,
+            ubicacion,
+            horario,
+            empresa_solicitante,
+            convenio,
+            subsector_economico,
+            datos_campesena,
         } = req.body;
+
+        const faltantes = [];
+        if (!programa_formacion)   faltantes.push('programa_formacion');
+        if (!modalidad)            faltantes.push('modalidad');
+        if (!tipo_programa)        faltantes.push('tipo_programa');
+        if (!tipo_oferta)          faltantes.push('tipo_oferta');
+        if (!cupo_maximo)          faltantes.push('cupo_maximo');
+        if (!coordinador_asignado) faltantes.push('coordinador_asignado');
+
+        if (faltantes.length > 0) {
+            return res.status(400).json({
+                msg: `Faltan campos obligatorios: ${faltantes.join(', ')}`
+            });
+        }
+
+        if (!datos_campesena?.sector_centro) {
+            return res.status(400).json({ msg: 'El sector centro es obligatorio para ofertas CAMPESENA' });
+        }
+
+        const datosCampesena = {
+            instructor_tecnico:       datos_campesena?.instructor_tecnico       || null,
+            instructor_empresarial:   datos_campesena?.instructor_empresarial   || null,
+            instructor_full_popular:  datos_campesena?.instructor_full_popular  || null,
+            sector_centro:            datos_campesena?.sector_centro,
+            programa_especial:        datos_campesena?.programa_especial        || null,
+            duracion_meses:           datos_campesena?.duracion_meses           || 5,
+            documentos:               datos_campesena?.documentos               || []
+        };
 
         const cursoData = {
             programa_formacion,
@@ -139,57 +185,52 @@ export const crearCursoCampesena = async (req, res) => {
             tipo_programa,
             tipo_oferta,
             cupo_maximo,
+            cupos_disponibles:    cupo_maximo,
             coordinador_asignado,
-            creado_por: req.usuario._id,
-            estado: 'pendiente',
-            datos_campesena: {
-                instructor_tecnico,
-                instructor_empresarial,
-                instructor_full_popular,
-                sector_centro,
-                programa_especial,
-                duracion_meses: 5,
-                documentos: documentos || []
-            },
-            fechas: fechas_curso,
-            ...otrosCampos
+            creado_por:           req.usuario._id,
+            estado:               'pendiente',
+            datos_campesena:      datosCampesena,
+            ...(fechas              && { fechas }),
+            ...(ambiente            && { ambiente }),
+            ...(ubicacion           && { ubicacion }),
+            ...(horario             && { horario }),
+            ...(empresa_solicitante && { empresa_solicitante }),
+            ...(convenio            && { convenio }),
+            ...(subsector_economico && { subsector_economico }),
         };
 
         const curso = new Curso(cursoData);
         await curso.save();
 
         await curso.populate([
-            { path: 'programa_formacion', select: 'nombre codigo' },
-            { path: 'modalidad', select: 'nombre' },
-            { path: 'tipo_programa', select: 'nombre' },
-            { path: 'tipo_oferta', select: 'nombre' },
-            { path: 'coordinador_asignado', select: 'nombre email' },
+            { path: 'programa_formacion',              select: 'nombre codigo' },
+            { path: 'modalidad',                       select: 'nombre' },
+            { path: 'tipo_programa',                   select: 'nombre' },
+            { path: 'tipo_oferta',                     select: 'nombre' },
+            { path: 'coordinador_asignado',            select: 'nombre email' },
             { path: 'datos_campesena.programa_especial', select: 'nombre codigo' }
         ]);
 
-        res.status(201).json({
-            msg: '✅ Curso CAMPESENA creado exitosamente',
-            curso
-        });
+        res.status(201).json({ msg: '✅ Curso CAMPESENA creado exitosamente', curso });
 
     } catch (error) {
         console.error('Error en crearCursoCampesena:', error);
-        res.status(500).json({ msg: 'Error al crear el curso' });
+        res.status(500).json({ msg: 'Error al crear el curso', error: error.message });
     }
 };
 
-// ============================================
-// FUNCIONES PARA LISTAR CURSOS
-// ============================================
+// ============================================================
+// LISTAR / OBTENER
+// ============================================================
 
 export const getMisCursos = async (req, res) => {
     try {
         const cursos = await Curso.find({ creado_por: req.usuario._id })
-            .populate('programa_formacion', 'nombre codigo')
-            .populate('modalidad', 'nombre')
-            .populate('tipo_programa', 'nombre')
-            .populate('tipo_oferta', 'nombre')
-            .populate('coordinador_asignado', 'nombre email')
+            .populate('programa_formacion',  'nombre codigo')
+            .populate('modalidad',           'nombre')
+            .populate('tipo_programa',       'nombre')
+            .populate('tipo_oferta',         'nombre')
+            .populate('coordinador_asignado','nombre email')
             .sort({ createdAt: -1 });
 
         res.json({ cursos });
@@ -202,19 +243,15 @@ export const getMisCursos = async (req, res) => {
 export const getCurso = async (req, res) => {
     try {
         const { id } = req.params;
-        
-        const curso = await Curso.findOne({ 
-            _id: id,
-            creado_por: req.usuario._id 
-        })
-        .populate('programa_formacion')
-        .populate('modalidad')
-        .populate('tipo_programa')
-        .populate('tipo_oferta')
-        .populate('ubicacion.municipio')
-        .populate('coordinador_asignado', 'nombre email')
-        .populate('funcionario_asignado', 'nombre email')
-        .populate('datos_campesena.programa_especial');
+
+        const curso = await Curso.findOne({ _id: id, creado_por: req.usuario._id })
+            .populate('programa_formacion')
+            .populate('modalidad')
+            .populate('tipo_programa')
+            .populate('tipo_oferta')
+            .populate('coordinador_asignado',  'nombre email')
+            .populate('funcionario_asignado',  'nombre email')
+            .populate('datos_campesena.programa_especial');
 
         if (!curso) {
             return res.status(404).json({ msg: 'Curso no encontrado' });
@@ -227,30 +264,26 @@ export const getCurso = async (req, res) => {
     }
 };
 
-// ============================================
-// FUNCIONES PARA ACTUALIZAR CURSOS
-// ============================================
+// ============================================================
+// ACTUALIZAR / ELIMINAR
+// ============================================================
 
 export const actualizarCurso = async (req, res) => {
     try {
         const { id } = req.params;
-        
-        const curso = await Curso.findOne({ 
-            _id: id,
-            creado_por: req.usuario._id 
-        });
+
+        const curso = await Curso.findOne({ _id: id, creado_por: req.usuario._id });
 
         if (!curso) {
             return res.status(404).json({ msg: 'Curso no encontrado' });
         }
 
         if (!['pendiente', 'rechazada'].includes(curso.estado)) {
-            return res.status(400).json({ 
-                msg: `No puedes modificar un curso en estado: ${curso.estado}` 
+            return res.status(400).json({
+                msg: `No puedes modificar un curso en estado: ${curso.estado}`
             });
         }
 
-        // Actualizar campos según el tipo de oferta
         const camposPermitidos = [
             'programa_formacion', 'modalidad', 'tipo_programa', 'tipo_oferta',
             'cupo_maximo', 'ambiente', 'fechas', 'ubicacion', 'empresa_solicitante',
@@ -263,20 +296,12 @@ export const actualizarCurso = async (req, res) => {
             }
         });
 
-        // Actualizar datos específicos según tipo
-        if (curso.tipo_oferta?.nombre === 'CAMPESENA' && req.body.datos_campesena) {
-            curso.datos_campesena = {
-                ...curso.datos_campesena,
-                ...req.body.datos_campesena
-            };
+        if (req.body.datos_campesena) {
+            curso.datos_campesena = { ...curso.datos_campesena, ...req.body.datos_campesena };
         } else if (req.body.datos_regular) {
-            curso.datos_regular = {
-                ...curso.datos_regular,
-                ...req.body.datos_regular
-            };
+            curso.datos_regular = { ...curso.datos_regular, ...req.body.datos_regular };
         }
 
-        // Si estaba rechazada, volver a pendiente
         if (curso.estado === 'rechazada') {
             curso.estado = 'pendiente';
             curso.comentarios_rechazo = undefined;
@@ -285,15 +310,12 @@ export const actualizarCurso = async (req, res) => {
         await curso.save();
         await curso.populate([
             { path: 'programa_formacion', select: 'nombre' },
-            { path: 'modalidad', select: 'nombre' },
-            { path: 'tipo_programa', select: 'nombre' },
-            { path: 'tipo_oferta', select: 'nombre' }
+            { path: 'modalidad',          select: 'nombre' },
+            { path: 'tipo_programa',      select: 'nombre' },
+            { path: 'tipo_oferta',        select: 'nombre' }
         ]);
 
-        res.json({
-            msg: '✅ Curso actualizado correctamente',
-            curso
-        });
+        res.json({ msg: '✅ Curso actualizado correctamente', curso });
 
     } catch (error) {
         console.error('Error en actualizarCurso:', error);
@@ -304,24 +326,20 @@ export const actualizarCurso = async (req, res) => {
 export const eliminarCurso = async (req, res) => {
     try {
         const { id } = req.params;
-        
-        const curso = await Curso.findOne({ 
-            _id: id,
-            creado_por: req.usuario._id 
-        });
+
+        const curso = await Curso.findOne({ _id: id, creado_por: req.usuario._id });
 
         if (!curso) {
             return res.status(404).json({ msg: 'Curso no encontrado' });
         }
 
         if (curso.estado !== 'pendiente') {
-            return res.status(400).json({ 
-                msg: `No puedes eliminar un curso en estado: ${curso.estado}` 
+            return res.status(400).json({
+                msg: `No puedes eliminar un curso en estado: ${curso.estado}`
             });
         }
 
         await curso.deleteOne();
-
         res.json({ msg: '✅ Curso eliminado correctamente' });
 
     } catch (error) {
@@ -330,34 +348,25 @@ export const eliminarCurso = async (req, res) => {
     }
 };
 
-// ============================================
-// FUNCIONES PARA FLUJO DE APROBACIÓN
-// ============================================
+// ============================================================
+// FLUJO DE APROBACIÓN
+// ============================================================
 
 export const aprobarCursoCoordinacion = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { comentarios } = req.body;
-
         if (req.usuario.role !== 'coordinador') {
             return res.status(403).json({ msg: 'Solo coordinadores pueden aprobar cursos' });
         }
 
-        const curso = await Curso.findById(id);
-        if (!curso) {
-            return res.status(404).json({ msg: 'Curso no encontrado' });
-        }
+        const curso = await Curso.findById(req.params.id);
+        if (!curso) return res.status(404).json({ msg: 'Curso no encontrado' });
 
         curso.estado = 'aprobada_coordinacion';
         curso.fecha_aprobacion_coordinacion = new Date();
         curso.comentarios_rechazo = undefined;
 
         await curso.save();
-
-        res.json({
-            msg: '✅ Curso aprobado por coordinación',
-            curso
-        });
+        res.json({ msg: '✅ Curso aprobado por coordinación', curso });
 
     } catch (error) {
         console.error('Error en aprobarCursoCoordinacion:', error);
@@ -367,43 +376,28 @@ export const aprobarCursoCoordinacion = async (req, res) => {
 
 export const asignarFuncionario = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { funcionario_id, codigo_ficha, codigo_solicitud } = req.body;
-
         if (req.usuario.role !== 'coordinador') {
             return res.status(403).json({ msg: 'Solo coordinadores pueden asignar funcionarios' });
         }
 
-        const curso = await Curso.findById(id);
-        if (!curso) {
-            return res.status(404).json({ msg: 'Curso no encontrado' });
-        }
+        const curso = await Curso.findById(req.params.id);
+        if (!curso) return res.status(404).json({ msg: 'Curso no encontrado' });
+
+        const { funcionario_id, codigo_ficha, codigo_solicitud } = req.body;
 
         curso.funcionario_asignado = funcionario_id;
         curso.estado = 'en_creacion_ficha';
         curso.fecha_creacion_ficha = new Date();
 
-        // Guardar códigos en el seguimiento correspondiente
         const seguimiento = { codigo_ficha, codigo_solicitud };
-        
         if (curso.datos_campesena) {
-            curso.datos_campesena.seguimiento = {
-                ...curso.datos_campesena.seguimiento,
-                ...seguimiento
-            };
+            curso.datos_campesena.seguimiento = { ...curso.datos_campesena.seguimiento, ...seguimiento };
         } else if (curso.datos_regular) {
-            curso.datos_regular.seguimiento = {
-                ...curso.datos_regular.seguimiento,
-                ...seguimiento
-            };
+            curso.datos_regular.seguimiento = { ...curso.datos_regular.seguimiento, ...seguimiento };
         }
 
         await curso.save();
-
-        res.json({
-            msg: '✅ Funcionario asignado correctamente',
-            curso
-        });
+        res.json({ msg: '✅ Funcionario asignado correctamente', curso });
 
     } catch (error) {
         console.error('Error en asignarFuncionario:', error);
@@ -413,41 +407,24 @@ export const asignarFuncionario = async (req, res) => {
 
 export const registrarInscripcion = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { numero_inscritos, observaciones } = req.body;
-
         if (req.usuario.role !== 'funcionario') {
             return res.status(403).json({ msg: 'Solo funcionarios pueden registrar inscripciones' });
         }
 
-        const curso = await Curso.findById(id);
-        if (!curso) {
-            return res.status(404).json({ msg: 'Curso no encontrado' });
-        }
+        const curso = await Curso.findById(req.params.id);
+        if (!curso) return res.status(404).json({ msg: 'Curso no encontrado' });
 
-        const seguimientoData = {
-            numero_inscritos,
-            observaciones_inscripcion: observaciones
-        };
+        const { numero_inscritos, observaciones } = req.body;
+        const seguimientoData = { numero_inscritos, observaciones_inscripcion: observaciones };
 
         if (curso.datos_campesena) {
-            curso.datos_campesena.seguimiento = {
-                ...curso.datos_campesena.seguimiento,
-                ...seguimientoData
-            };
+            curso.datos_campesena.seguimiento = { ...curso.datos_campesena.seguimiento, ...seguimientoData };
         } else if (curso.datos_regular) {
-            curso.datos_regular.seguimiento = {
-                ...curso.datos_regular.seguimiento,
-                ...seguimientoData
-            };
+            curso.datos_regular.seguimiento = { ...curso.datos_regular.seguimiento, ...seguimientoData };
         }
 
         await curso.save();
-
-        res.json({
-            msg: '✅ Inscripción registrada correctamente',
-            curso
-        });
+        res.json({ msg: '✅ Inscripción registrada correctamente', curso });
 
     } catch (error) {
         console.error('Error en registrarInscripcion:', error);
@@ -457,18 +434,14 @@ export const registrarInscripcion = async (req, res) => {
 
 export const registrarMatricula = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { numero_matriculados, observaciones } = req.body;
-
         if (req.usuario.role !== 'funcionario') {
             return res.status(403).json({ msg: 'Solo funcionarios pueden registrar matrículas' });
         }
 
-        const curso = await Curso.findById(id);
-        if (!curso) {
-            return res.status(404).json({ msg: 'Curso no encontrado' });
-        }
+        const curso = await Curso.findById(req.params.id);
+        if (!curso) return res.status(404).json({ msg: 'Curso no encontrado' });
 
+        const { numero_matriculados, observaciones } = req.body;
         const seguimientoData = {
             numero_matriculados,
             fecha_matricula: new Date(),
@@ -476,27 +449,16 @@ export const registrarMatricula = async (req, res) => {
         };
 
         if (curso.datos_campesena) {
-            curso.datos_campesena.seguimiento = {
-                ...curso.datos_campesena.seguimiento,
-                ...seguimientoData
-            };
+            curso.datos_campesena.seguimiento = { ...curso.datos_campesena.seguimiento, ...seguimientoData };
         } else if (curso.datos_regular) {
-            curso.datos_regular.seguimiento = {
-                ...curso.datos_regular.seguimiento,
-                ...seguimientoData
-            };
+            curso.datos_regular.seguimiento = { ...curso.datos_regular.seguimiento, ...seguimientoData };
         }
 
-        // Actualizar estado del curso
         curso.estado = numero_matriculados > 0 ? 'activa' : 'finalizada';
         curso.cupos_disponibles = (curso.cupo_maximo || 0) - numero_matriculados;
 
         await curso.save();
-
-        res.json({
-            msg: '✅ Matrícula registrada correctamente',
-            curso
-        });
+        res.json({ msg: '✅ Matrícula registrada correctamente', curso });
 
     } catch (error) {
         console.error('Error en registrarMatricula:', error);

@@ -1,55 +1,53 @@
 import api from './api';
 
 const cursoApi = {
-    // Obtener datos de referencia
+
+    // ── Referencias ────────────────────────────────────────────────────────────
     getReferencias: async () => {
         const response = await api.get('/cursos/referencias');
         return response.data;
     },
 
-    // Obtener coordinadores disponibles
+    // ✅ FIX: endpoint alineado con cursoRoutes.js  (/cursos/coordinadores)
     getCoordinadores: async () => {
-        const response = await api.get('/coordinadores/disponibles');
+        const response = await api.get('/cursos/coordinadores');
         return response.data;
     },
 
-    // Crear un nuevo curso
-    crearCurso: async (cursoData) => {
+    // ── Crear curso ────────────────────────────────────────────────────────────
+    crearCurso: async (cursoData, tipo = 'regular') => {
         try {
-            // IMPORTANTE: Asegurarnos de enviar SOLO los IDs
+            // ✅ FIX: solo incluir coordinador_asignado si tiene valor real
+            //         (un string vacío '' pasaba la validación del backend y fallaba)
             const dataToSend = {
                 programa_formacion: cursoData.programa_formacion?._id || cursoData.programa_formacion,
-                modalidad: cursoData.modalidad?._id || cursoData.modalidad,
-                tipo_programa: cursoData.tipo_programa?._id || cursoData.tipo_programa,
-                tipo_oferta: cursoData.tipo_oferta?._id || cursoData.tipo_oferta,
-                cupo_maximo: Number(cursoData.cupo_maximo),
-                coordinador_asignado: cursoData.coordinador_asignado?._id || cursoData.coordinador_asignado
+                modalidad:          cursoData.modalidad?._id          || cursoData.modalidad,
+                tipo_programa:      cursoData.tipo_programa?._id      || cursoData.tipo_programa,
+                tipo_oferta:        cursoData.tipo_oferta?._id        || cursoData.tipo_oferta,
+                cupo_maximo:        Number(cursoData.cupo_maximo),
             };
 
-            // Agregar campos opcionales solo si existen
-            if (cursoData.programa_especial) {
-                dataToSend.programa_especial = cursoData.programa_especial;
-            }
+            // Solo agregar coordinador si existe
+            const coordinadorId = cursoData.coordinador_asignado?._id || cursoData.coordinador_asignado;
+            if (coordinadorId) dataToSend.coordinador_asignado = coordinadorId;
 
-            if (cursoData.ambiente) {
-                dataToSend.ambiente = cursoData.ambiente;
-            }
+            // Campos opcionales
+            if (cursoData.fechas?.inicio_curso)  dataToSend.fechas    = cursoData.fechas;
+            if (cursoData.ambiente?.nombre)       dataToSend.ambiente  = cursoData.ambiente;
+            if (cursoData.ubicacion?.direccion)   dataToSend.ubicacion = cursoData.ubicacion;
+            if (cursoData.horario?.dias?.length)  dataToSend.horario   = cursoData.horario;
+            if (cursoData.empresa_solicitante?.nombre) dataToSend.empresa_solicitante = cursoData.empresa_solicitante;
+            if (cursoData.convenio?.numero)            dataToSend.convenio            = cursoData.convenio;
+            if (cursoData.subsector_economico?.nombre) dataToSend.subsector_economico = cursoData.subsector_economico;
 
-            if (cursoData.fechas) {
-                dataToSend.fechas = cursoData.fechas;
-            }
+            // Datos específicos según tipo
+            if (tipo === 'regular'   && cursoData.datos_regular)   dataToSend.datos_regular   = cursoData.datos_regular;
+            if (tipo === 'campesena' && cursoData.datos_campesena) dataToSend.datos_campesena = cursoData.datos_campesena;
 
-            if (cursoData.ubicacion) {
-                dataToSend.ubicacion = cursoData.ubicacion;
-            }
+            const endpoint = tipo === 'campesena' ? '/cursos/campesena' : '/cursos/regular';
+            console.log(`📤 Enviando a ${endpoint}:`, dataToSend);
 
-            if (cursoData.horario) {
-                dataToSend.horario = cursoData.horario;
-            }
-
-            console.log('📤 Enviando datos al backend:', dataToSend);
-
-            const response = await api.post('/cursos', dataToSend);
+            const response = await api.post(endpoint, dataToSend);
             return response.data;
         } catch (error) {
             console.error('❌ Error en crearCurso:', error.response?.data || error.message);
@@ -57,30 +55,30 @@ const cursoApi = {
         }
     },
 
-    // Obtener mis cursos
+    // ── Listar / obtener ───────────────────────────────────────────────────────
     getMisCursos: async () => {
         const response = await api.get('/cursos/mis-cursos');
         return response.data;
     },
 
-    // Obtener un curso específico
     getCurso: async (id) => {
         const response = await api.get(`/cursos/mis-cursos/${id}`);
         return response.data;
     },
 
-    // Actualizar un curso
+    // ── Actualizar ─────────────────────────────────────────────────────────────
     actualizarCurso: async (id, cursoData) => {
         try {
-            // Limpiar datos antes de enviar
             const dataToSend = {
                 programa_formacion: cursoData.programa_formacion?._id || cursoData.programa_formacion,
-                modalidad: cursoData.modalidad?._id || cursoData.modalidad,
-                tipo_programa: cursoData.tipo_programa?._id || cursoData.tipo_programa,
-                tipo_oferta: cursoData.tipo_oferta?._id || cursoData.tipo_oferta,
-                cupo_maximo: Number(cursoData.cupo_maximo),
-                coordinador_asignado: cursoData.coordinador_asignado?._id || cursoData.coordinador_asignado
+                modalidad:          cursoData.modalidad?._id          || cursoData.modalidad,
+                tipo_programa:      cursoData.tipo_programa?._id      || cursoData.tipo_programa,
+                tipo_oferta:        cursoData.tipo_oferta?._id        || cursoData.tipo_oferta,
+                cupo_maximo:        Number(cursoData.cupo_maximo),
             };
+
+            const coordinadorId = cursoData.coordinador_asignado?._id || cursoData.coordinador_asignado;
+            if (coordinadorId) dataToSend.coordinador_asignado = coordinadorId;
 
             console.log('📤 Actualizando curso:', dataToSend);
 
@@ -92,7 +90,7 @@ const cursoApi = {
         }
     },
 
-    // Eliminar un curso
+    // ── Eliminar ───────────────────────────────────────────────────────────────
     eliminarCurso: async (id) => {
         const response = await api.delete(`/cursos/mis-cursos/${id}`);
         return response.data;
