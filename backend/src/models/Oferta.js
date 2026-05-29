@@ -56,6 +56,7 @@ const ofertaSchema = new mongoose.Schema({
     },
     direccion: { type: String, required: true }
   },
+  // ✅ Referencia a la colección Empresa (solo para ofertas cerradas)
   empresa_solicitante: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa',
@@ -93,7 +94,7 @@ const ofertaSchema = new mongoose.Schema({
   },
   coordinador_asignado: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Usuario',  // si usas Usuario como referencia
+    ref: 'Usuario',
     required: true
   },
   creado_por: {
@@ -110,7 +111,7 @@ const ofertaSchema = new mongoose.Schema({
   firma_digital_pdf: { type: String },
   estado: {
     type: String,
-    enum: ['borrador','pendiente','aprobado','rechazado'],
+    enum: ['borrador', 'pendiente', 'aprobado', 'rechazado'],
     default: 'pendiente'
   },
   comentario_coordinador: { type: String, default: '' },

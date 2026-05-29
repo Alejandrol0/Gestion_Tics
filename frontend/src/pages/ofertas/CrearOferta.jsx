@@ -10,9 +10,9 @@ const CrearOferta = ({ tipo }) => {
   const { user } = useAuth();
   const { referencias, cargarReferencias, crearOferta } = useOfertas();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('programa'); // programa, oferta, ubicacion, horario
+  const [activeTab, setActiveTab] = useState('programa');
+  const [diaInput, setDiaInput] = useState('');
 
-  // Estado unificado del formulario (coincide con el modelo)
   const [formData, setFormData] = useState({
     programa_formacion: '',
     modalidad: '',
@@ -24,7 +24,16 @@ const CrearOferta = ({ tipo }) => {
     ambiente: { nombre: '' },
     fechas: { inicio: '', fin: '' },
     ubicacion: { departamento: 'Cauca', municipio: '', direccion: '' },
-    empresa_solicitante: '',
+    empresa_solicitante: {
+      nombre: '',
+      fecha_creacion: '',
+      direccion: '',
+      nit: '',
+      numero_empleados: '',
+      tipo_empresa: 'Privada',
+      representante_legal: { nombre: '', documento: '', correo: '' },
+      contacto_empresa: { nombre: '', cargo: '', correo: '' }
+    },
     subsector_economico: { nombre: '' },
     programa_especial: '',
     convenio: { nombre: '' },
@@ -33,20 +42,69 @@ const CrearOferta = ({ tipo }) => {
     coordinador_asignado: user?.coordinador_asignado?._id || ''
   });
 
-  const [diaInput, setDiaInput] = useState('');
-
+  // Cargar referencias al montar
   useEffect(() => {
     cargarReferencias();
   }, []);
 
+  // Al seleccionar programa, autocompletar tipo_programa y duración
+  useEffect(() => {
+    // Solo ejecutar si tenemos los datos necesarios
+    if (!formData.programa_formacion || !referencias.programas || !referencias.tiposProg) return;
+
+    const programaSeleccionado = referencias.programas.find(
+      p => p._id === formData.programa_formacion
+    );
+    if (!programaSeleccionado) return;
+
+    // Depuración: ver en consola qué trae el programa
+    console.log('Programa seleccionado:', programaSeleccionado);
+    console.log('Tipos disponibles:', referencias.tiposProg);
+
+    // 1. Duración en meses (usando duracion_maxima, asumiendo 40 horas/mes)
+    const horas = programaSeleccionado.duracion_maxima;
+    if (horas && typeof horas === 'number') {
+      const meses = Math.ceil(horas / 40);
+      setFormData(prev => ({ ...prev, duracion_meses: meses }));
+    }
+
+    // 2. Tipo de programa: mapear el string (ej "COMPLEMENTARIA") al ObjectId correspondiente
+    const tipoTexto = programaSeleccionado.tipo_programa?.trim();
+    if (tipoTexto) {
+      // Búsqueda insensible a mayúsculas/minúsculas
+      const tipoEncontrado = referencias.tiposProg.find(t => 
+        t.nombre && t.nombre.trim().toLowerCase() === tipoTexto.toLowerCase()
+      );
+      if (tipoEncontrado) {
+        setFormData(prev => ({ ...prev, tipo_programa: tipoEncontrado._id }));
+        console.log('✅ Tipo asignado:', tipoEncontrado.nombre);
+      } else {
+        console.warn(`⚠️ No se encontró un TipoPrograma con nombre "${tipoTexto}".`);
+        toast.error(`El programa tiene tipo "${tipoTexto}" pero no existe en la lista de tipos. Notifica al administrador.`);
+      }
+    } else {
+      console.warn('El programa seleccionado no tiene campo tipo_programa');
+    }
+  }, [formData.programa_formacion, referencias.programas, referencias.tiposProg]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: { ...prev[parent], [child]: value }
-      }));
+      const [parent, child, subchild] = name.split('.');
+      if (subchild) {
+        setFormData(prev => ({
+          ...prev,
+          [parent]: {
+            ...prev[parent],
+            [child]: { ...prev[parent][child], [subchild]: value }
+          }
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [parent]: { ...prev[parent], [child]: value }
+        }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -69,12 +127,17 @@ const CrearOferta = ({ tipo }) => {
     }));
   };
 
+  const getTipoOfertaNombre = () => {
+    const tipo = referencias.tiposOferta?.find(t => t._id === formData.tipo_oferta);
+    return tipo ? tipo.nombre : '';
+  };
+
   const validateTab = () => {
     if (activeTab === 'programa') {
       if (!formData.programa_formacion) return toast.error('Selecciona un programa de formación');
       if (!formData.modalidad) return toast.error('Selecciona una modalidad');
-      if (!formData.duracion_meses) return toast.error('Ingresa la duración en meses');
-      if (!formData.tipo_programa) return toast.error('Selecciona un tipo de programa');
+      if (!formData.duracion_meses) return toast.error('La duración se calcula automáticamente, pero no se pudo calcular');
+      if (!formData.tipo_programa) return toast.error('El tipo de programa no se pudo determinar automáticamente. Contacta al administrador.');
       return true;
     }
     if (activeTab === 'oferta') {
@@ -83,6 +146,10 @@ const CrearOferta = ({ tipo }) => {
       if (!formData.subsector_economico.nombre) return toast.error('Ingresa el subsector económico');
       if (!formData.convenio.nombre) return toast.error('Ingresa el nombre del convenio');
       if (!formData.coordinador_asignado) return toast.error('No tienes un coordinador asignado');
+      if (getTipoOfertaNombre() === 'Cerrada') {
+        if (!formData.empresa_solicitante.nombre) return toast.error('Ingresa el nombre de la empresa patrocinadora');
+        if (!formData.empresa_solicitante.nit) return toast.error('Ingresa el NIT de la empresa');
+      }
       return true;
     }
     if (activeTab === 'ubicacion') {
@@ -125,8 +192,14 @@ const CrearOferta = ({ tipo }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateTab()) return;
+
+    const datosEnvio = {
+      ...formData,
+      tipo_oferta_nombre: getTipoOfertaNombre()
+    };
+
     setLoading(true);
-    const result = await crearOferta(formData, tipo);
+    const result = await crearOferta(datosEnvio, tipo);
     if (result.success) navigate('/ofertas/mis-ofertas');
     setLoading(false);
   };
@@ -139,13 +212,11 @@ const CrearOferta = ({ tipo }) => {
         </button>
 
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Encabezado */}
           <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
             <h1 className="text-3xl font-bold">Nueva Oferta</h1>
             <p className="text-green-100">Tipo: {tipo === 'campesena' ? 'Campesena' : 'Regular'}</p>
           </div>
 
-          {/* Tabs */}
           <div className="flex border-b">
             {['programa', 'oferta', 'ubicacion', 'horario'].map(tab => (
               <button
@@ -166,40 +237,63 @@ const CrearOferta = ({ tipo }) => {
             ))}
           </div>
 
-          {/* Formulario */}
           <form onSubmit={handleSubmit} className="p-6">
-            {/* TAB 1: PROGRAMA */}
+            {/* TAB PROGRAMA */}
             {activeTab === 'programa' && (
               <div className="space-y-4">
                 <div>
                   <label className="block font-semibold mb-1">Programa de formación *</label>
                   <select name="programa_formacion" value={formData.programa_formacion} onChange={handleChange} className="w-full p-3 border rounded-xl" required>
                     <option value="">Selecciona</option>
-                    {referencias.programas?.map(p => <option key={p._id} value={p._id}>{p.nombre}</option>)}
+                    {referencias.programas?.map(p => (
+                      <option key={p._id} value={p._id}>{p.nombre_programa}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Modalidad *</label>
                   <select name="modalidad" value={formData.modalidad} onChange={handleChange} className="w-full p-3 border rounded-xl" required>
                     <option value="">Selecciona</option>
-                    {referencias.modalidades?.map(m => <option key={m._id} value={m._id}>{m.nombre}</option>)}
+                    {referencias.modalidades?.map(m => (
+                      <option key={m._id} value={m._id}>{m.nombre}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Duración (meses) *</label>
-                  <input type="number" name="duracion_meses" value={formData.duracion_meses} onChange={handleChange} min="1" max="12" className="w-full p-3 border rounded-xl" />
+                  <input
+                    type="number"
+                    name="duracion_meses"
+                    value={formData.duracion_meses}
+                    onChange={handleChange}
+                    min="1"
+                    max="24"
+                    className="w-full p-3 border rounded-xl bg-gray-100"
+                    disabled
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Calculada automáticamente según las horas del programa</p>
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Tipo de programa *</label>
-                  <select name="tipo_programa" value={formData.tipo_programa} onChange={handleChange} className="w-full p-3 border rounded-xl" required>
+                  <select
+                    name="tipo_programa"
+                    value={formData.tipo_programa}
+                    onChange={handleChange}
+                    className="w-full p-3 border rounded-xl bg-gray-100"
+                    disabled
+                    required
+                  >
                     <option value="">Selecciona</option>
-                    {referencias.tiposProg?.map(t => <option key={t._id} value={t._id}>{t.nombre}</option>)}
+                    {referencias.tiposProg?.map(t => (
+                      <option key={t._id} value={t._id}>{t.nombre}</option>
+                    ))}
                   </select>
+                  <p className="text-xs text-gray-400 mt-1">Se asigna automáticamente según el programa de formación</p>
                 </div>
               </div>
             )}
 
-            {/* TAB 2: OFERTA */}
+            {/* TAB OFERTA (sin cambios) */}
             {activeTab === 'oferta' && (
               <div className="space-y-4">
                 <div>
@@ -225,19 +319,75 @@ const CrearOferta = ({ tipo }) => {
                   <label className="block font-semibold mb-1">Coordinador asignado</label>
                   <input type="text" value={user?.coordinador_asignado?.nombre || 'No asignado'} disabled className="w-full p-3 border rounded-xl bg-gray-100" />
                 </div>
-                {tipo === 'campesena' && (
-                  <div>
-                    <label className="block font-semibold mb-1">Programa especial (opcional)</label>
-                    <select name="programa_especial" value={formData.programa_especial} onChange={handleChange} className="w-full p-3 border rounded-xl">
-                      <option value="">Ninguno</option>
-                      {/* Aquí puedes cargar programas especiales si los tienes */}
-                    </select>
+
+                {getTipoOfertaNombre() === 'Cerrada' && (
+                  <div className="mt-6 p-4 border-2 border-blue-200 rounded-xl bg-blue-50">
+                    <h3 className="text-lg font-bold text-blue-800 mb-4">Datos de la empresa patrocinadora</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold mb-1">Nombre de la Empresa *</label>
+                        <input type="text" name="empresa_solicitante.nombre" value={formData.empresa_solicitante.nombre} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Fecha Creación</label>
+                        <input type="date" name="empresa_solicitante.fecha_creacion" value={formData.empresa_solicitante.fecha_creacion?.split('T')[0] || ''} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Dirección</label>
+                        <input type="text" name="empresa_solicitante.direccion" value={formData.empresa_solicitante.direccion} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">NIT</label>
+                        <input type="text" name="empresa_solicitante.nit" value={formData.empresa_solicitante.nit} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Número de Empleados</label>
+                        <input type="number" name="empresa_solicitante.numero_empleados" value={formData.empresa_solicitante.numero_empleados} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Tipo de Empresa</label>
+                        <select name="empresa_solicitante.tipo_empresa" value={formData.empresa_solicitante.tipo_empresa} onChange={handleChange} className="w-full p-3 border rounded-xl">
+                          <option value="Privada">Privada</option>
+                          <option value="Pública">Pública</option>
+                          <option value="Mixta">Mixta</option>
+                          <option value="Sin ánimo de lucro">Sin ánimo de lucro</option>
+                        </select>
+                      </div>
+                    </div>
+                    <h4 className="font-semibold mt-4 mb-2">Representante Legal</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input type="text" name="empresa_solicitante.representante_legal.nombre" value={formData.empresa_solicitante.representante_legal.nombre} onChange={handleChange} placeholder="Nombre completo" className="p-3 border rounded-xl" />
+                      <input type="text" name="empresa_solicitante.representante_legal.documento" value={formData.empresa_solicitante.representante_legal.documento} onChange={handleChange} placeholder="Documento" className="p-3 border rounded-xl" />
+                      <input type="email" name="empresa_solicitante.representante_legal.correo" value={formData.empresa_solicitante.representante_legal.correo} onChange={handleChange} placeholder="Correo" className="p-3 border rounded-xl" />
+                    </div>
+                    <h4 className="font-semibold mt-4 mb-2">Contacto en la Empresa</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input type="text" name="empresa_solicitante.contacto_empresa.nombre" value={formData.empresa_solicitante.contacto_empresa.nombre} onChange={handleChange} placeholder="Nombre del contacto" className="p-3 border rounded-xl" />
+                      <input type="text" name="empresa_solicitante.contacto_empresa.cargo" value={formData.empresa_solicitante.contacto_empresa.cargo} onChange={handleChange} placeholder="Cargo" className="p-3 border rounded-xl" />
+                      <input type="email" name="empresa_solicitante.contacto_empresa.correo" value={formData.empresa_solicitante.contacto_empresa.correo} onChange={handleChange} placeholder="Correo" className="p-3 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">Carta de la empresa (PDF)</label>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          setFormData(prev => ({
+                            ...prev,
+                            carta_pdf_file: file
+                          }));
+                        }}
+                        className="w-full p-2 border rounded-xl"
+                      />
+                      {formData.carta_pdf_file && <p className="text-sm text-green-600 mt-1">Archivo seleccionado: {formData.carta_pdf_file.name}</p>}
+                    </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB 3: UBICACIÓN */}
+            {/* TAB UBICACIÓN */}
             {activeTab === 'ubicacion' && (
               <div className="space-y-4">
                 <div>
@@ -262,7 +412,7 @@ const CrearOferta = ({ tipo }) => {
               </div>
             )}
 
-            {/* TAB 4: HORARIO Y FECHAS */}
+            {/* TAB HORARIO */}
             {activeTab === 'horario' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -314,7 +464,6 @@ const CrearOferta = ({ tipo }) => {
               </div>
             )}
 
-            {/* Botones de navegación */}
             <div className="flex justify-between mt-8 pt-6 border-t">
               {activeTab !== 'programa' && (
                 <button type="button" onClick={prevTab} className="px-6 py-2 bg-gray-500 text-white rounded-xl hover:bg-gray-600">← Anterior</button>

@@ -152,7 +152,7 @@ const EditarOferta = () => {
                             <label className="block text-gray-700 font-semibold mb-2">Programa de formación *</label>
                             <select name="programa_formacion" value={formData.programa_formacion} onChange={handleChange} className="w-full px-4 py-3 border-2 rounded-xl focus:border-green-500" required>
                                 <option value="">Selecciona</option>
-                                {referencias.programas?.map(p => <option key={p._id} value={p._id}>{p.nombre}</option>)}
+                                {referencias.programas?.map(p => <option key={p._id} value={p._id}>{p.nombre_programa}</option>)}
                             </select>
                         </div>
                         {/* Modalidad */}

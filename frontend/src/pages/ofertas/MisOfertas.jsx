@@ -78,7 +78,7 @@ const MisOfertas = () => {
                                     </div>
                                 </div>
                                 <div className="p-5">
-                                    <h3 className="font-bold text-lg text-gray-800 mb-2 line-clamp-2">{oferta.programa_formacion?.nombre || 'Programa no especificado'}</h3>
+                                    <h3 className="font-bold text-lg text-gray-800 mb-2 line-clamp-2">{oferta.programa_formacion?.nombre_programa || 'Programa no especificado'}</h3>
                                     <div className="space-y-2 mb-4">
                                         <p className="text-sm text-gray-600"><span className="font-semibold">Modalidad:</span> {oferta.modalidad?.nombre || 'N/A'}</p>
                                         <p className="text-sm text-gray-600"><span className="font-semibold">Fechas:</span> {new Date(oferta.fechas?.inicio).toLocaleDateString()} - {new Date(oferta.fechas?.fin).toLocaleDateString()}</p>

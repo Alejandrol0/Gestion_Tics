@@ -79,7 +79,7 @@ const DetalleOferta = () => {
                         <div className="flex items-center gap-4">
                             {getStatusIcon(oferta.estado)}
                             <div>
-                                <h1 className="text-2xl font-bold">{oferta.programa_formacion?.nombre || 'Programa de formación'}</h1>
+                                <h1 className="text-2xl font-bold">{oferta.programa_formacion?.nombre_programa || 'Programa de formación'}</h1>
                                 <p className="text-sm opacity-75">Código: {oferta.programa_formacion?.codigo || 'N/A'}</p>
                             </div>
                         </div>
