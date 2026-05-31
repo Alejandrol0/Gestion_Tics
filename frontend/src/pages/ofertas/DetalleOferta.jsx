@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ofertaApi from '../../services/ofertaApi';
-import { FiArrowLeft, FiCalendar, FiMapPin, FiUsers, FiClock, FiBriefcase, FiCheckCircle, FiXCircle, FiClock as FiClockIcon } from 'react-icons/fi';
+import Navbar from '../../components/Navbar';
+import {
+    FiArrowLeft, FiCalendar, FiMapPin, FiUsers, FiClock,
+    FiBriefcase, FiCheckCircle, FiXCircle, FiEdit, FiBook,
+    FiHome, FiTag
+} from 'react-icons/fi';
 
 const DetalleOferta = () => {
     const { id } = useParams();
@@ -11,9 +16,7 @@ const DetalleOferta = () => {
     const [oferta, setOferta] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        cargarOferta();
-    }, [id]);
+    useEffect(() => { cargarOferta(); }, [id]);
 
     const cargarOferta = async () => {
         try {
@@ -26,158 +29,241 @@ const DetalleOferta = () => {
         }
     };
 
-    const getStatusColor = (estado) => {
-        switch(estado) {
-            case 'aprobado': return 'bg-green-100 text-green-800 border-green-200';
-            case 'pendiente': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-            case 'rechazado': return 'bg-red-100 text-red-800 border-red-200';
-            default: return 'bg-gray-100 text-gray-800';
-        }
+    const estadoConfig = {
+        aprobado:  { bg: 'from-green-600 to-green-700',  badge: 'bg-green-100 text-green-800 border-green-300',  icon: <FiCheckCircle className="text-3xl" />, label: 'Aprobada' },
+        pendiente: { bg: 'from-yellow-500 to-yellow-600', badge: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: <FiClock className="text-3xl" />,       label: 'Pendiente de revisión' },
+        rechazado: { bg: 'from-red-600 to-red-700',      badge: 'bg-red-100 text-red-800 border-red-300',         icon: <FiXCircle className="text-3xl" />,       label: 'Rechazada' },
     };
 
-    const getStatusIcon = (estado) => {
-        switch(estado) {
-            case 'aprobado': return <FiCheckCircle className="text-green-600 text-2xl" />;
-            case 'pendiente': return <FiClockIcon className="text-yellow-600 text-2xl" />;
-            case 'rechazado': return <FiXCircle className="text-red-600 text-2xl" />;
-            default: return null;
-        }
-    };
+    const cfg = estadoConfig[oferta?.estado] || estadoConfig.pendiente;
+    const formatFecha = (f) => f ? new Date(f).toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="bg-white p-8 rounded-2xl shadow-lg">
-                    <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-600">Cargando información...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!oferta) {
-        return (
+    if (loading) return (
+        <>
+            <Navbar />
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="bg-white p-8 rounded-2xl shadow-lg text-center">
-                    <FiXCircle className="text-6xl text-red-500 mx-auto mb-4" />
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Oferta no encontrada</h2>
-                    <button onClick={() => navigate('/ofertas/mis-ofertas')} className="bg-green-600 text-white px-6 py-3 rounded-xl mt-4">Volver</button>
+                    <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-medium">Cargando información...</p>
                 </div>
             </div>
-        );
-    }
+        </>
+    );
+
+    if (!oferta) return (
+        <>
+            <Navbar />
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="bg-white p-10 rounded-2xl shadow-lg text-center">
+                    <FiXCircle className="text-6xl text-red-500 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Ficha no encontrada</h2>
+                    <button onClick={() => navigate('/ofertas/mis-ofertas')} className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700">Volver</button>
+                </div>
+            </div>
+        </>
+    );
+
+    const nombrePrograma = oferta.programa_formacion?.nombre_programa || oferta.programa_formacion?.nombre || 'Programa no especificado';
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-4xl mx-auto px-4">
-                <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 mb-6">
-                    <FiArrowLeft /> Volver
-                </button>
+        <>
+            <Navbar />
+            <div className="min-h-screen bg-gray-50 py-8">
+                <div className="max-w-5xl mx-auto px-4">
 
-                <div className={`rounded-2xl shadow-lg p-6 mb-6 ${getStatusColor(oferta.estado)}`}>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            {getStatusIcon(oferta.estado)}
-                            <div>
-                                <h1 className="text-2xl font-bold">{oferta.programa_formacion?.nombre_programa || 'Programa de formación'}</h1>
-                                <p className="text-sm opacity-75">Código: {oferta.programa_formacion?.codigo || 'N/A'}</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm font-semibold">Estado</p>
-                            <p className="text-lg font-bold capitalize">{oferta.estado}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4">Información general</h2>
-                            <dl className="grid grid-cols-2 gap-4">
-                                <div><dt className="text-sm text-gray-500">Modalidad</dt><dd className="font-medium">{oferta.modalidad?.nombre || 'N/A'}</dd></div>
-                                <div><dt className="text-sm text-gray-500">Tipo de programa</dt><dd className="font-medium">{oferta.tipo_programa?.nombre || 'N/A'}</dd></div>
-                                <div><dt className="text-sm text-gray-500">Tipo de oferta</dt><dd className="font-medium">{oferta.tipo_oferta?.nombre || 'N/A'}</dd></div>
-                                <div><dt className="text-sm text-gray-500">Cupo máximo</dt><dd className="font-medium">{oferta.cupo_maximo} personas</dd></div>
-                                <div><dt className="text-sm text-gray-500">Duración</dt><dd className="font-medium">{oferta.duracion_meses} meses</dd></div>
-                                {oferta.es_campesena && <div><dt className="text-sm text-gray-500">Es campesena</dt><dd className="font-medium text-green-600">Sí</dd></div>}
-                            </dl>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2"><FiCalendar /> Fechas</h2>
-                            <dl className="grid grid-cols-2 gap-4">
-                                <div><dt className="text-sm text-gray-500">Inicio</dt><dd className="font-medium">{new Date(oferta.fechas?.inicio).toLocaleDateString()}</dd></div>
-                                <div><dt className="text-sm text-gray-500">Fin</dt><dd className="font-medium">{new Date(oferta.fechas?.fin).toLocaleDateString()}</dd></div>
-                            </dl>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2"><FiMapPin /> Ubicación</h2>
-                            <dl className="grid grid-cols-2 gap-4">
-                                <div><dt className="text-sm text-gray-500">Municipio</dt><dd className="font-medium">{oferta.ubicacion?.municipio?.nombre || 'N/A'}</dd></div>
-                                <div><dt className="text-sm text-gray-500">Dirección</dt><dd className="font-medium">{oferta.ubicacion?.direccion || 'N/A'}</dd></div>
-                            </dl>
-                        </div>
-
-                        {oferta.horario && (
-                            <div className="bg-white rounded-xl shadow-lg p-6">
-                                <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2"><FiClock /> Horario</h2>
-                                <dl className="grid grid-cols-2 gap-4">
-                                    <div><dt className="text-sm text-gray-500">Días</dt><dd className="font-medium">{oferta.horario?.dias?.join(', ') || 'No especificado'}</dd></div>
-                                    <div><dt className="text-sm text-gray-500">Hora</dt><dd className="font-medium">{oferta.horario?.hora_inicio} - {oferta.horario?.hora_fin}</dd></div>
-                                </dl>
-                            </div>
-                        )}
+                    {/* Breadcrumb */}
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+                        <button onClick={() => navigate('/dashboard')} className="hover:text-green-600 flex items-center gap-1"><FiHome /> Inicio</button>
+                        <span>/</span>
+                        <button onClick={() => navigate('/ofertas/mis-ofertas')} className="hover:text-green-600">Mis Fichas</button>
+                        <span>/</span>
+                        <span className="text-gray-800 font-medium">Detalle</span>
                     </div>
 
-                    <div className="space-y-6">
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4">Ambiente</h2>
-                            <p className="font-medium">{oferta.ambiente?.nombre || 'No especificado'}</p>
-                        </div>
-
-                        <div className="bg-white rounded-xl shadow-lg p-6">
-                            <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4">Coordinador</h2>
-                            {oferta.coordinador_asignado ? (
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center"><FiBriefcase className="text-white" /></div>
-                                    <div><p className="font-bold">{oferta.coordinador_asignado.nombre}</p><p className="text-sm text-gray-600">{oferta.coordinador_asignado.email}</p></div>
+                    {/* Header con estado */}
+                    <div className={`bg-gradient-to-r ${cfg.bg} rounded-2xl shadow-lg p-6 mb-6 text-white`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                {cfg.icon}
+                                <div>
+                                    <p className="text-sm font-medium opacity-80 mb-0.5">Estado de la ficha</p>
+                                    <h2 className="text-2xl font-bold">{cfg.label}</h2>
                                 </div>
-                            ) : <p className="text-gray-500">No asignado</p>}
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm opacity-75">Creada el</p>
+                                <p className="font-semibold">{new Date(oferta.createdAt).toLocaleDateString('es-CO')}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Alerta de rechazo */}
+                    {oferta.estado === 'rechazado' && oferta.comentario_coordinador && (
+                        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 mb-6">
+                            <p className="font-bold text-red-800 mb-1">💬 Motivo del rechazo:</p>
+                            <p className="text-red-700">{oferta.comentario_coordinador}</p>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Columna principal */}
+                        <div className="lg:col-span-2 space-y-5">
+
+                            {/* Programa */}
+                            <div className="bg-white rounded-2xl shadow-md p-6">
+                                <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                    <FiBook className="text-green-600" /> Programa de Formación
+                                </h3>
+                                <p className="text-xl font-bold text-gray-900 mb-3">{nombrePrograma}</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Modalidad</p>
+                                        <p className="font-semibold">{oferta.modalidad?.nombre || 'N/A'}</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Tipo de programa</p>
+                                        <p className="font-semibold">{oferta.tipo_programa?.nombre || 'N/A'}</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Tipo de oferta</p>
+                                        <p className="font-semibold">{oferta.tipo_oferta?.nombre || 'N/A'}</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Duración</p>
+                                        <p className="font-semibold">{oferta.duracion_meses} meses</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Cupo máximo</p>
+                                        <p className="font-semibold flex items-center gap-1"><FiUsers className="text-green-500" /> {oferta.cupo_maximo} personas</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Ambiente</p>
+                                        <p className="font-semibold">{oferta.ambiente?.nombre || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Fechas */}
+                            <div className="bg-white rounded-2xl shadow-md p-6">
+                                <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                    <FiCalendar className="text-green-600" /> Fechas
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                                        <p className="text-xs text-green-600 font-semibold mb-1">INICIO</p>
+                                        <p className="font-bold text-gray-800">{formatFecha(oferta.fechas?.inicio)}</p>
+                                    </div>
+                                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                                        <p className="text-xs text-green-600 font-semibold mb-1">FIN</p>
+                                        <p className="font-bold text-gray-800">{formatFecha(oferta.fechas?.fin)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Horario */}
+                            {!oferta.es_campesena && oferta.horario && (
+                                <div className="bg-white rounded-2xl shadow-md p-6">
+                                    <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                        <FiClock className="text-green-600" /> Horario
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {oferta.horario?.dias?.map(d => (
+                                            <span key={d} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">{d}</span>
+                                        ))}
+                                    </div>
+                                    <p className="text-gray-700">
+                                        <span className="font-semibold">Hora:</span> {oferta.horario?.hora_inicio} – {oferta.horario?.hora_fin}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Ubicación */}
+                            <div className="bg-white rounded-2xl shadow-md p-6">
+                                <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                    <FiMapPin className="text-green-600" /> Ubicación
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Departamento</p>
+                                        <p className="font-semibold">{oferta.ubicacion?.departamento || 'Cauca'}</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3">
+                                        <p className="text-xs text-gray-500 mb-1">Municipio</p>
+                                        <p className="font-semibold">{oferta.ubicacion?.municipio?.nombre || 'N/A'}</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-3 col-span-2">
+                                        <p className="text-xs text-gray-500 mb-1">Dirección</p>
+                                        <p className="font-semibold">{oferta.ubicacion?.direccion || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        {oferta.subsector_economico?.nombre && (
-                            <div className="bg-white rounded-xl shadow-lg p-6">
-                                <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4">Subsector económico</h2>
-                                <p className="font-medium">{oferta.subsector_economico.nombre}</p>
+                        {/* Columna lateral */}
+                        <div className="space-y-5">
+                            {/* Coordinador */}
+                            <div className="bg-white rounded-2xl shadow-md p-6">
+                                <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                    <FiBriefcase className="text-green-600" /> Coordinador
+                                </h3>
+                                {oferta.coordinador_asignado ? (
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">
+                                            {oferta.coordinador_asignado.nombre?.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-800">{oferta.coordinador_asignado.nombre}</p>
+                                            <p className="text-sm text-gray-500">{oferta.coordinador_asignado.email}</p>
+                                        </div>
+                                    </div>
+                                ) : <p className="text-gray-500">No asignado</p>}
                             </div>
-                        )}
 
-                        {oferta.convenio?.nombre && (
-                            <div className="bg-white rounded-xl shadow-lg p-6">
-                                <h2 className="text-xl font-bold border-b-2 border-green-500 pb-2 mb-4">Convenio</h2>
-                                <p className="font-medium">{oferta.convenio.nombre}</p>
+                            {/* Detalles adicionales */}
+                            <div className="bg-white rounded-2xl shadow-md p-6">
+                                <h3 className="text-lg font-bold text-gray-800 border-b-2 border-green-500 pb-2 mb-4 flex items-center gap-2">
+                                    <FiTag className="text-green-600" /> Detalles
+                                </h3>
+                                <div className="space-y-3 text-sm">
+                                    {oferta.subsector_economico?.nombre && (
+                                        <div>
+                                            <p className="text-gray-500 text-xs">Subsector económico</p>
+                                            <p className="font-semibold text-gray-800">{oferta.subsector_economico.nombre}</p>
+                                        </div>
+                                    )}
+                                    {oferta.convenio?.nombre && (
+                                        <div>
+                                            <p className="text-gray-500 text-xs">Convenio</p>
+                                            <p className="font-semibold text-gray-800">{oferta.convenio.nombre}</p>
+                                        </div>
+                                    )}
+                                    {oferta.es_campesena && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                                            <p className="text-amber-700 font-semibold">🌾 Ficha Campesena</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        )}
 
-                        {oferta.comentario_coordinador && (
-                            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                                <p className="font-semibold text-red-800">Comentario del coordinador:</p>
-                                <p className="text-red-700 text-sm">{oferta.comentario_coordinador}</p>
-                            </div>
-                        )}
-
-                        {(oferta.estado === 'pendiente' || oferta.estado === 'rechazado') && user?.role === 'instructor' && (
-                            <div className="bg-white rounded-xl shadow-lg p-6">
-                                <Link to={`/ofertas/editar/${oferta._id}`} className="w-full block text-center bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700">Editar oferta</Link>
-                                {oferta.estado === 'rechazado' && <p className="text-sm text-gray-500 mt-3 text-center">Puedes editarla y volver a enviarla</p>}
-                            </div>
-                        )}
+                            {/* Acciones */}
+                            {(oferta.estado === 'pendiente' || oferta.estado === 'rechazado') && user?.role === 'instructor' && (
+                                <div className="bg-white rounded-2xl shadow-md p-6">
+                                    <Link
+                                        to={`/ofertas/editar/${oferta._id}`}
+                                        className="w-full flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all"
+                                    >
+                                        <FiEdit /> Editar ficha
+                                    </Link>
+                                    {oferta.estado === 'rechazado' && (
+                                        <p className="text-xs text-gray-500 mt-2 text-center">Corrígela y vuelve a enviarla</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 

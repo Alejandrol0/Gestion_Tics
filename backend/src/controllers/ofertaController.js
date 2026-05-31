@@ -112,7 +112,7 @@ export const crearOfertaCampesena = async (req, res) => {
 export const getMisOfertas = async (req, res) => {
     try {
         const ofertas = await Oferta.find({ creado_por: req.usuario._id })
-            .populate('programa_formacion', 'nombre codigo')
+            .populate('programa_formacion', 'nombre_programa codigo duracion_maxima')
             .populate('modalidad', 'nombre')
             .populate('tipo_programa', 'nombre')
             .populate('tipo_oferta', 'nombre')
@@ -130,7 +130,7 @@ export const getMisOfertas = async (req, res) => {
 export const getOferta = async (req, res) => {
     try {
         const oferta = await Oferta.findById(req.params.id)
-            .populate('programa_formacion', 'nombre codigo')
+            .populate('programa_formacion', 'nombre_programa codigo duracion_maxima')
             .populate('modalidad', 'nombre')
             .populate('tipo_programa', 'nombre')
             .populate('tipo_oferta', 'nombre')

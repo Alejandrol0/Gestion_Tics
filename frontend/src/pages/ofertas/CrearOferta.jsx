@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useOfertas } from '../../context/OfertaContext';
 import { FiSave, FiArrowLeft } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import Navbar from '../../components/Navbar';
 
 const CrearOferta = ({ tipo }) => {
   const navigate = useNavigate();
@@ -11,7 +12,9 @@ const CrearOferta = ({ tipo }) => {
   const { referencias, cargarReferencias, crearOferta } = useOfertas();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('programa');
-  const [diaInput, setDiaInput] = useState('');
+  const [busquedaPrograma, setBusquedaPrograma] = useState('');
+  const [mostrarListaPrograma, setMostrarListaPrograma] = useState(false);
+
 
   const [formData, setFormData] = useState({
     programa_formacion: '',
@@ -87,6 +90,84 @@ const CrearOferta = ({ tipo }) => {
     }
   }, [formData.programa_formacion, referencias.programas, referencias.tiposProg]);
 
+  // ── Calcular fecha fin automáticamente ──────────────────────────────────────
+  const calcularFechaFin = (fechaInicio, horasPrograma, horaInicio, horaFin, diasSemana) => {
+    if (!fechaInicio || !horasPrograma || !horaInicio || !horaFin || diasSemana.length === 0) return null;
+
+    // Horas por día de clase
+    const [hIni, mIni] = horaInicio.split(':').map(Number);
+    const [hFin, mFin] = horaFin.split(':').map(Number);
+    const horasPorDia = (hFin * 60 + mFin - (hIni * 60 + mIni)) / 60;
+    if (horasPorDia <= 0) return null;
+
+    // Horas por semana
+    const horasPorSemana = horasPorDia * diasSemana.length;
+
+    // Mapa de nombre de día → número JS (0=Dom, 1=Lun, ...)
+    const mapaDia = {
+      'Domingo': 0, 'Lunes': 1, 'Martes': 2, 'Miércoles': 3,
+      'Jueves': 4, 'Viernes': 5, 'Sábado': 6
+    };
+    const numeroDias = diasSemana.map(d => mapaDia[d]).filter(n => n !== undefined);
+
+    let horasAcumuladas = 0;
+    let fechaActual = new Date(fechaInicio + 'T00:00:00');
+
+    // Avanzar día por día sumando horas hasta completar el programa
+    const MAX_ITER = 3650; // tope de 10 años para evitar bucle infinito
+    let iter = 0;
+    while (horasAcumuladas < horasPrograma && iter < MAX_ITER) {
+      const diaSemana = fechaActual.getDay();
+      if (numeroDias.includes(diaSemana)) {
+        horasAcumuladas += horasPorDia;
+      }
+      if (horasAcumuladas < horasPrograma) {
+        fechaActual.setDate(fechaActual.getDate() + 1);
+      }
+      iter++;
+    }
+
+    // Formatear como yyyy-MM-dd para el input type="date"
+    return fechaActual.toISOString().split('T')[0];
+  };
+
+  // Recalcular fecha fin cuando cambien los inputs relevantes
+  useEffect(() => {
+    if (formData.es_campesena) return;
+
+    const programa = referencias.programas?.find(p => p._id === formData.programa_formacion);
+    const horasPrograma = programa?.duracion_maxima;
+
+    const fechaFin = calcularFechaFin(
+      formData.fechas.inicio,
+      horasPrograma,
+      formData.horario.hora_inicio,
+      formData.horario.hora_fin,
+      formData.horario.dias
+    );
+
+    if (fechaFin) {
+      // Calcular duracion_meses real a partir de las fechas
+      const inicio = new Date(formData.fechas.inicio + 'T00:00:00');
+      const fin = new Date(fechaFin + 'T00:00:00');
+      const diffMs = fin - inicio;
+      const mesesReales = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 30)));
+
+      setFormData(prev => ({
+        ...prev,
+        fechas: { ...prev.fechas, fin: fechaFin },
+        duracion_meses: mesesReales
+      }));
+    }
+  }, [
+    formData.fechas.inicio,
+    formData.horario.hora_inicio,
+    formData.horario.hora_fin,
+    formData.horario.dias,
+    formData.programa_formacion,
+    referencias.programas
+  ]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name.includes('.')) {
@@ -108,23 +189,6 @@ const CrearOferta = ({ tipo }) => {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-  };
-
-  const handleDias = () => {
-    if (diaInput && !formData.horario.dias.includes(diaInput)) {
-      setFormData(prev => ({
-        ...prev,
-        horario: { ...prev.horario, dias: [...prev.horario.dias, diaInput] }
-      }));
-    }
-    setDiaInput('');
-  };
-
-  const removeDia = (dia) => {
-    setFormData(prev => ({
-      ...prev,
-      horario: { ...prev.horario, dias: prev.horario.dias.filter(d => d !== dia) }
-    }));
   };
 
   const getTipoOfertaNombre = () => {
@@ -193,18 +257,65 @@ const CrearOferta = ({ tipo }) => {
     e.preventDefault();
     if (!validateTab()) return;
 
+    // ── Validación manual de campos críticos antes de enviar ──
+    if (!formData.programa_formacion) {
+      toast.error('⚠️ Debes seleccionar un programa de formación de la lista');
+      setActiveTab('programa');
+      return;
+    }
+    if (!formData.tipo_programa) {
+      toast.error('⚠️ El tipo de programa no se pudo determinar. Selecciona otro programa.');
+      setActiveTab('programa');
+      return;
+    }
+    if (!formData.modalidad) {
+      toast.error('⚠️ Selecciona una modalidad');
+      setActiveTab('programa');
+      return;
+    }
+    if (!formData.tipo_oferta) {
+      toast.error('⚠️ Selecciona un tipo de oferta');
+      setActiveTab('oferta');
+      return;
+    }
+    if (!formData.ubicacion.municipio) {
+      toast.error('⚠️ Selecciona un municipio');
+      setActiveTab('ubicacion');
+      return;
+    }
+    if (!formData.fechas.inicio || !formData.fechas.fin) {
+      toast.error('⚠️ Las fechas de inicio y fin son obligatorias');
+      setActiveTab('horario');
+      return;
+    }
+
     const datosEnvio = {
       ...formData,
       tipo_oferta_nombre: getTipoOfertaNombre()
     };
 
+    console.log('📤 Enviando oferta:', JSON.stringify(datosEnvio, null, 2));
+
     setLoading(true);
-    const result = await crearOferta(datosEnvio, tipo);
-    if (result.success) navigate('/ofertas/mis-ofertas');
-    setLoading(false);
+    try {
+      const result = await crearOferta(datosEnvio, tipo);
+      console.log('📥 Resultado:', result);
+      if (result.success) {
+        navigate('/ofertas/mis-ofertas');
+      } else {
+        toast.error(`Error: ${result.error || 'No se pudo crear la oferta'}`);
+      }
+    } catch (err) {
+      console.error('❌ Error inesperado:', err);
+      toast.error('Error inesperado al crear la oferta');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
+    <>
+    <Navbar />
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 mb-6">
@@ -241,14 +352,82 @@ const CrearOferta = ({ tipo }) => {
             {/* TAB PROGRAMA */}
             {activeTab === 'programa' && (
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block font-semibold mb-1">Programa de formación *</label>
-                  <select name="programa_formacion" value={formData.programa_formacion} onChange={handleChange} className="w-full p-3 border rounded-xl" required>
-                    <option value="">Selecciona</option>
-                    {referencias.programas?.map(p => (
-                      <option key={p._id} value={p._id}>{p.nombre_programa}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Buscar programa por nombre o código..."
+                      value={busquedaPrograma}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setBusquedaPrograma(val);
+                        setMostrarListaPrograma(true);
+                        // Si el usuario edita el texto, invalidar la selección anterior
+                        if (formData.programa_formacion) {
+                          setFormData(prev => ({ ...prev, programa_formacion: '' }));
+                        }
+                      }}
+                      onFocus={() => setMostrarListaPrograma(true)}
+                      onBlur={() => setTimeout(() => setMostrarListaPrograma(false), 200)}
+                      className={`w-full p-3 border rounded-xl pr-10 ${
+                        formData.programa_formacion ? 'border-green-400 bg-green-50' : ''
+                      }`}
+                      autoComplete="off"
+                    />
+                    {/* Ícono de estado */}
+                    {formData.programa_formacion
+                      ? <span className="absolute right-3 top-3.5 text-green-600">✅</span>
+                      : busquedaPrograma
+                        ? <span className="absolute right-3 top-3.5 text-gray-400">🔍</span>
+                        : null
+                    }
+                  </div>
+
+                  {/* Indicador de programa seleccionado */}
+                  {formData.programa_formacion && (
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-green-700 font-medium">
+                        Programa seleccionado correctamente
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setBusquedaPrograma(''); setFormData(prev => ({ ...prev, programa_formacion: '', tipo_programa: '', duracion_meses: 4 })); }}
+                        className="text-xs text-red-400 hover:text-red-600"
+                      >
+                        ✕ Limpiar
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Dropdown de resultados */}
+                  {mostrarListaPrograma && busquedaPrograma.length > 0 && (
+                    <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto mt-1">
+                      {(referencias.programas || [])
+                        .filter(p => p.nombre_programa.toLowerCase().includes(busquedaPrograma.toLowerCase()))
+                        .slice(0, 50)
+                        .map(p => (
+                          <li
+                            key={p._id}
+                            onMouseDown={e => {
+                              e.preventDefault(); // evita que onBlur se dispare antes
+                              setFormData(prev => ({ ...prev, programa_formacion: p._id }));
+                              setBusquedaPrograma(p.nombre_programa);
+                              setMostrarListaPrograma(false);
+                            }}
+                            className={`px-4 py-2.5 cursor-pointer hover:bg-green-50 hover:text-green-800 text-sm transition-colors border-b border-gray-50 last:border-0
+                              ${formData.programa_formacion === p._id ? 'bg-green-100 font-semibold text-green-800' : 'text-gray-700'}`}
+                          >
+                            {p.nombre_programa}
+                          </li>
+                        ))}
+                      {(referencias.programas || []).filter(p =>
+                        p.nombre_programa.toLowerCase().includes(busquedaPrograma.toLowerCase())
+                      ).length === 0 && (
+                        <li className="px-4 py-3 text-gray-400 text-sm text-center">Sin resultados para "{busquedaPrograma}"</li>
+                      )}
+                    </ul>
+                  )}
                 </div>
                 <div>
                   <label className="block font-semibold mb-1">Modalidad *</label>
@@ -300,7 +479,9 @@ const CrearOferta = ({ tipo }) => {
                   <label className="block font-semibold mb-1">Tipo de oferta *</label>
                   <select name="tipo_oferta" value={formData.tipo_oferta} onChange={handleChange} className="w-full p-3 border rounded-xl" required>
                     <option value="">Selecciona</option>
-                    {referencias.tiposOferta?.map(t => <option key={t._id} value={t._id}>{t.nombre}</option>)}
+                    {referencias.tiposOferta
+                      ?.filter(t => ['Cerrada', 'Pública', 'Publica'].includes(t.nombre))
+                      .map(t => <option key={t._id} value={t._id}>{t.nombre}</option>)}
                   </select>
                 </div>
                 <div>
@@ -422,7 +603,20 @@ const CrearOferta = ({ tipo }) => {
                   </div>
                   <div>
                     <label className="block font-semibold mb-1">Fecha de fin *</label>
-                    <input type="date" name="fechas.fin" value={formData.fechas.fin} onChange={handleChange} className="w-full p-3 border rounded-xl" />
+                    <input
+                      type="date"
+                      name="fechas.fin"
+                      value={formData.fechas.fin}
+                      onChange={handleChange}
+                      className={`w-full p-3 border rounded-xl ${
+                        formData.fechas.fin && formData.horario.hora_inicio && formData.horario.dias.length > 0
+                          ? 'bg-green-50 border-green-300'
+                          : ''
+                      }`}
+                    />
+                    {formData.fechas.fin && formData.horario.hora_inicio && formData.horario.dias.length > 0 && (
+                      <p className="text-xs text-green-600 mt-1">✅ Calculada automáticamente según horas del programa</p>
+                    )}
                   </div>
                 </div>
                 {!formData.es_campesena && (
@@ -438,22 +632,77 @@ const CrearOferta = ({ tipo }) => {
                       </div>
                     </div>
                     <div>
-                      <label className="block font-semibold mb-1">Días de clase</label>
-                      <div className="flex gap-2">
-                        <select value={diaInput} onChange={(e) => setDiaInput(e.target.value)} className="flex-1 p-3 border rounded-xl">
-                          <option value="">Selecciona un día</option>
-                          {['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'].map(d => <option key={d}>{d}</option>)}
-                        </select>
-                        <button type="button" onClick={handleDias} className="px-4 py-2 bg-green-600 text-white rounded-xl">Agregar</button>
+                      <label className="block font-semibold mb-2">Días de clase</label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { nombre: 'Lunes',     corto: 'L'  },
+                          { nombre: 'Martes',    corto: 'M'  },
+                          { nombre: 'Miércoles', corto: 'Mi' },
+                          { nombre: 'Jueves',    corto: 'J'  },
+                          { nombre: 'Viernes',   corto: 'V'  },
+                          { nombre: 'Sábado',    corto: 'S'  },
+                        ].map(({ nombre, corto }) => {
+                          const activo = formData.horario.dias.includes(nombre);
+                          return (
+                            <button
+                              key={nombre}
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  horario: {
+                                    ...prev.horario,
+                                    dias: activo
+                                      ? prev.horario.dias.filter(d => d !== nombre)
+                                      : [...prev.horario.dias, nombre]
+                                  }
+                                }));
+                              }}
+                              className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl font-bold text-sm transition-all border-2 select-none
+                                ${activo
+                                  ? 'bg-green-600 text-white border-green-600 shadow-md scale-105'
+                                  : 'bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-600'
+                                }`}
+                            >
+                              <span className="text-lg leading-none">{corto}</span>
+                              <span className="text-[10px] font-normal mt-0.5 opacity-80">{nombre.slice(0,3)}</span>
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {formData.horario.dias.map((dia, idx) => (
-                          <span key={idx} className="bg-green-100 text-green-800 px-3 py-1 rounded-full flex items-center gap-2">
-                            {dia} <button type="button" onClick={() => removeDia(dia)} className="text-green-600">×</button>
-                          </span>
-                        ))}
-                      </div>
+                      {formData.horario.dias.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Seleccionados: <span className="font-semibold text-green-700">{formData.horario.dias.join(', ')}</span>
+                        </p>
+                      )}
                     </div>
+
+                    {/* Resumen del cálculo de horas */}
+                    {formData.horario.hora_inicio && formData.horario.hora_fin && formData.horario.dias.length > 0 && (() => {
+                      const programa = referencias.programas?.find(p => p._id === formData.programa_formacion);
+                      const horasPrograma = programa?.duracion_maxima;
+                      const [hIni, mIni] = formData.horario.hora_inicio.split(':').map(Number);
+                      const [hFin, mFin] = formData.horario.hora_fin.split(':').map(Number);
+                      const horasPorDia = ((hFin * 60 + mFin) - (hIni * 60 + mIni)) / 60;
+                      const horasPorSemana = horasPorDia * formData.horario.dias.length;
+                      const semanasTotal = horasPrograma ? Math.ceil(horasPrograma / horasPorSemana) : null;
+                      const mesesTotal = semanasTotal ? (semanasTotal / 4.33).toFixed(1) : null;
+
+                      if (horasPorDia <= 0) return null;
+                      return (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-2">
+                          <p className="text-sm font-semibold text-blue-800 mb-2">📊 Resumen del cálculo</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm text-blue-700">
+                            <span>⏱ Horas por día:</span><span className="font-bold">{horasPorDia.toFixed(1)} h</span>
+                            <span>📅 Días por semana:</span><span className="font-bold">{formData.horario.dias.length}</span>
+                            <span>📆 Horas por semana:</span><span className="font-bold">{horasPorSemana.toFixed(1)} h</span>
+                            {horasPrograma && <><span>🎓 Horas del programa:</span><span className="font-bold">{horasPrograma} h</span></>}
+                            {semanasTotal && <><span>🗓 Semanas necesarias:</span><span className="font-bold">{semanasTotal}</span></>}
+                            {mesesTotal && <><span>🗓 Meses aproximados:</span><span className="font-bold">{mesesTotal}</span></>}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
                 {formData.es_campesena && (
@@ -480,6 +729,7 @@ const CrearOferta = ({ tipo }) => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
