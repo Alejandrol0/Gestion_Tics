@@ -130,7 +130,7 @@ const DetalleOferta = () => {
                                     </div>
                                     <div className="bg-gray-50 rounded-xl p-3">
                                         <p className="text-xs text-gray-500 mb-1">Duración</p>
-                                        <p className="font-semibold">{oferta.duracion_meses} meses</p>
+                                        <p className="font-semibold">{oferta.duracion_meses} horas</p>
                                     </div>
                                     <div className="bg-gray-50 rounded-xl p-3">
                                         <p className="text-xs text-gray-500 mb-1">Cupo máximo</p>

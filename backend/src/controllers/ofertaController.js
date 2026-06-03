@@ -12,9 +12,9 @@ import { crearEmpresa } from './empresaController.js';
 export const getReferencias = async (req, res) => {
     try {
         const [programas, modalidades, tiposProg, tiposOferta, municipios] = await Promise.all([
-            ProgramaFormacion.find().select('nombre_programa codigo duracion_maxima tipo_programa'), // ← duracion_maxima y tipo_programa (string)
+            ProgramaFormacion.find().select('nombre_programa codigo duracion_maxima tipo_programa'),
             Modalidad.find().select('nombre'),
-            TipoPrograma.find().select('nombre nivel'), // estos son los ObjectId con nombre
+            TipoPrograma.find().select('nombre nivel'),
             TipoOferta.find().select('nombre descripcion'),
             Municipio.find().select('nombre').sort('nombre')
         ]);
@@ -25,7 +25,7 @@ export const getReferencias = async (req, res) => {
     }
 };
 
-// ── Crear ficha Regular (con soporte para archivo y empresa) ─────────────────
+// ── Crear ficha Regular ─────────────────────────────────────────────────────
 export const crearOfertaRegular = async (req, res) => {
     if (!req.usuario.coordinador_asignado) {
         return res.status(400).json({ msg: 'No tienes un coordinador asignado. Contacta al administrador.' });
@@ -46,7 +46,7 @@ export const crearOfertaRegular = async (req, res) => {
             modalidad: datosOferta.modalidad,
             tipo_programa: datosOferta.tipo_programa,
             tipo_oferta: datosOferta.tipo_oferta,
-            duracion_meses: datosOferta.duracion_meses || 4,
+            duracion_meses: datosOferta.duracion_meses || 4, // aquí llegan las horas
             cupo_maximo: datosOferta.cupo_maximo,
             ambiente: { nombre: datosOferta.ambiente?.nombre || '' },
             fechas: {
@@ -168,7 +168,7 @@ export const getOfertasPendientes = async (req, res) => {
     }
 };
 
-// ── Aprobar o rechazar (coordinador) ─────────────────────────────────────────
+// ── Aprobar o rechazar ───────────────────────────────────────────────────────
 export const revisarOferta = async (req, res) => {
     const { estado, comentario } = req.body;
     if (!['aprobado', 'rechazado'].includes(estado)) {

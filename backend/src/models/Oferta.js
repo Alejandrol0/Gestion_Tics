@@ -14,8 +14,8 @@ const ofertaSchema = new mongoose.Schema({
   duracion_meses: {
     type: Number,
     required: true,
-    min: 1,
-    max: 12
+    min: 1
+    // ❌ Se elimina max:12 para permitir horas (carreras de hasta 4000 horas)
   },
   es_campesena: {
     type: Boolean,
@@ -56,7 +56,6 @@ const ofertaSchema = new mongoose.Schema({
     },
     direccion: { type: String, required: true }
   },
-  // ✅ Referencia a la colección Empresa (solo para ofertas cerradas)
   empresa_solicitante: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Empresa',
