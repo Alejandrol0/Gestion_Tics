@@ -11,154 +11,51 @@ const FormularioInscripcion = () => {
   const [tiposDocumento, setTiposDocumento] = useState([]);
   const [caracterizaciones, setCaracterizaciones] = useState([]);
   const [oferta, setOferta] = useState(null);
-  
+
   const [formData, setFormData] = useState({
-    nombres: '',
-    apellidos: '',
-    tipo_documento: '',
-    numero_documento: '',
-    caracterizacion: '',
-    telefono: '',
-    correo: '',
-    pdf_cedula: null
+    nombres: '', apellidos: '', tipo_documento: '',
+    numero_documento: '', caracterizacion: '',
+    telefono: '', correo: '', pdf_cedula: null,
   });
 
-  // ===== FUNCIÓN PARA DESCARGAR PDF (AHORA DENTRO DEL COMPONENTE) =====
-  const descargarPDF = async (ofertaId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await api.get(`/ofertas/${ofertaId}/pdf`, {
-        responseType: 'blob',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `ficha-${ofertaId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-    } catch (error) {
-      console.error('Error descargando PDF:', error);
-      alert('Error al descargar el PDF');
-    }
-  };
-
   useEffect(() => {
-    console.log('🔑 Código de inscripción:', codigo);
     cargarDatosIniciales();
     cargarInfoOferta();
   }, [codigo]);
 
   const cargarDatosIniciales = async () => {
     try {
-      console.log('📥 Cargando tipos de documento y caracterizaciones...');
-      
-      const [tiposDocRes, caracterizacionesRes] = await Promise.all([
+      const [tiposRes, caracRes] = await Promise.all([
         api.get('/tipos-documento'),
-        api.get('/caracterizaciones')
+        api.get('/caracterizaciones'),
       ]);
-
-      console.log('✅ Tipos de documento (RAW):', tiposDocRes);
-      console.log('✅ Tipos de documento (DATA):', tiposDocRes.data);
-      console.log('✅ Tipos de documento (DATA.DATA):', tiposDocRes.data.data);
-      
-      console.log('✅ Caracterizaciones (RAW):', caracterizacionesRes);
-      console.log('✅ Caracterizaciones (DATA):', caracterizacionesRes.data);
-      console.log('✅ Caracterizaciones (DATA.DATA):', caracterizacionesRes.data.data);
-      
-      // Verificar que son arrays
-      const tiposArray = Array.isArray(tiposDocRes.data.data) ? tiposDocRes.data.data : [];
-      const caracArray = Array.isArray(caracterizacionesRes.data.data) ? caracterizacionesRes.data.data : [];
-      
-      console.log('✅ Tipos array length:', tiposArray.length);
-      console.log('✅ Carac array length:', caracArray.length);
-      
-      setTiposDocumento(tiposArray);
-      setCaracterizaciones(caracArray);
-      
-    } catch (error) {
-      console.error('❌ Error cargando datos:', error);
-      console.error('❌ Detalle:', error.response?.data);
+      setTiposDocumento(Array.isArray(tiposRes.data.data) ? tiposRes.data.data : []);
+      setCaracterizaciones(Array.isArray(caracRes.data.data) ? caracRes.data.data : []);
+    } catch {
       setError('Error al cargar datos del formulario');
     }
   };
 
-  const getTiposDocumento = async (req, res) => {
-    try {
-      console.log('🔍 [PÚBLICA] Buscando tipos de documento...');
-      const tipos = await TipoDoc.find();
-      console.log(`✅ [PÚBLICA] Encontrados ${tipos.length} tipos de documento`);
-      res.json({
-        success: true,
-        data: tipos
-      });
-    } catch (error) {
-      console.error('❌ Error en getTiposDocumento:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  };
-
-  const getCaracterizaciones = async (req, res) => {
-    try {
-      console.log('🔍 [PÚBLICA] Buscando caracterizaciones...');
-      const caracterizaciones = await Caracterizacion.find();
-      console.log(`✅ [PÚBLICA] Encontradas ${caracterizaciones.length} caracterizaciones`);
-      res.json({
-        success: true,
-        data: caracterizaciones
-      });
-    } catch (error) {
-      console.error('❌ Error en getCaracterizaciones:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  };
-
-
-
-
   const cargarInfoOferta = async () => {
     try {
-      const response = await api.get(`/ofertas/link/${codigo}`);
-      setOferta(response.data.data);
-      console.log('✅ Oferta encontrada:', response.data.data);
-    } catch (error) {
-      console.error('Error cargando oferta:', error);
+      const res = await api.get(`/ofertas/link/${codigo}`);
+      setOferta(res.data.data);
+    } catch {
       setError('Link de inscripción no válido');
     } finally {
       setLoadingDatos(false);
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-  };
+  const handleChange = e =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleFileChange = (e) => {
-    setFormData({
-      ...formData,
-      pdf_cedula: e.target.files[0]
-    });
-  };
+  const handleFile = e =>
+    setFormData({ ...formData, pdf_cedula: e.target.files[0] });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
+    setLoading(true); setError(''); setSuccess('');
     try {
       if (!formData.nombres) throw new Error('Los nombres son obligatorios');
       if (!formData.apellidos) throw new Error('Los apellidos son obligatorios');
@@ -169,333 +66,455 @@ const FormularioInscripcion = () => {
       if (!formData.correo) throw new Error('El correo es obligatorio');
       if (!formData.pdf_cedula) throw new Error('La cédula escaneada es obligatoria');
 
-      const formDataToSend = new FormData();
-      formDataToSend.append('nombres', formData.nombres);
-      formDataToSend.append('apellidos', formData.apellidos);
-      formDataToSend.append('tipo_documento', formData.tipo_documento);
-      formDataToSend.append('numero_documento', formData.numero_documento);
-      formDataToSend.append('caracterizacion', formData.caracterizacion);
-      formDataToSend.append('telefono', formData.telefono);
-      formDataToSend.append('correo', formData.correo);
-      formDataToSend.append('pdf_cedula', formData.pdf_cedula);
+      const fd = new FormData();
+      Object.entries(formData).forEach(([k, v]) => fd.append(k, v));
 
-      for (let pair of formDataToSend.entries()) {
-        console.log(pair[0] + ': ' + pair[1]);
-      }
-
-      const response = await api.post(`/inscripciones/oferta/${codigo}`, formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      await api.post(`/inscripciones/oferta/${codigo}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      setSuccess('✅ ¡Inscripción exitosa!');
-      console.log('Respuesta:', response.data);
-      
-      setFormData({
-        nombres: '',
-        apellidos: '',
-        tipo_documento: '',
-        numero_documento: '',
-        caracterizacion: '',
-        telefono: '',
-        correo: '',
-        pdf_cedula: null
-      });
-
-    } catch (error) {
-      console.error('Error:', error);
-      if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else {
-        setError(error.message);
-      }
+      setSuccess('¡Inscripción registrada exitosamente! Te notificaremos por correo.');
+      setFormData({ nombres: '', apellidos: '', tipo_documento: '',
+        numero_documento: '', caracterizacion: '', telefono: '', correo: '', pdf_cedula: null });
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loadingDatos) {
-    return <div style={styles.loading}>Cargando información de la oferta...</div>;
-  }
+  const fmt = d => d ? new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
 
-  if (!oferta) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.errorAlert}>
-          ❌ Link de inscripción no válido o expirado
-        </div>
+  if (loadingDatos) return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: "'Segoe UI', 'Roboto', sans-serif",
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          width: '40px', height: '40px',
+          border: '3px solid #e2e8f0',
+          borderTopColor: '#00643C',
+          borderRadius: '50%',
+          margin: '0 auto 16px',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <p style={{ color: '#2d6a4f' }}>Cargando información de la oferta…</p>
       </div>
-    );
-  }
-
-  return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>📝 Formulario de Inscripción</h2>
-      
-      {/* Información de la oferta */}
-      <div style={styles.ofertaInfo}>
-        <h3 style={styles.subtitle}>Información de la Oferta</h3>
-        <p><strong>Programa:</strong> {oferta.programa_formacion?.nombre_programa}</p>
-        <p><strong>Código:</strong> {oferta.programa_formacion?.codigo}</p>
-        <p><strong>Cupos disponibles:</strong> {oferta.cupos_disponibles}</p>
-        <p><strong>Fechas:</strong> {new Date(oferta.fechas?.inicio).toLocaleDateString()} - {new Date(oferta.fechas?.fin).toLocaleDateString()}</p>
-        <p><strong>Ubicación:</strong> {oferta.ubicacion?.municipio?.nombre}</p>
-        
-        {/* Botón para descargar PDF - AHORA FUNCIONA */}
-        
-      </div>
-
-      {error && <div style={styles.errorAlert}>❌ {error}</div>}
-      {success && <div style={styles.successAlert}>{success}</div>}
-
-      <form onSubmit={handleSubmit} style={styles.form}>
-        
-        <div style={styles.row}>
-          <div style={styles.half}>
-            <label style={styles.label}>Nombres:</label>
-            <input
-              type="text"
-              name="nombres"
-              value={formData.nombres}
-              onChange={handleChange}
-              style={styles.input}
-              placeholder="Ej: Juan Carlos"
-              required
-            />
-          </div>
-          <div style={styles.half}>
-            <label style={styles.label}>Apellidos:</label>
-            <input
-              type="text"
-              name="apellidos"
-              value={formData.apellidos}
-              onChange={handleChange}
-              style={styles.input}
-              placeholder="Ej: Pérez González"
-              required
-            />
-          </div>
-        </div>
-
-        <div style={styles.row}>
-          <div style={styles.half}>
-            <label style={styles.label}>Tipo de Documento:</label>
-            <select
-              name="tipo_documento"
-              value={formData.tipo_documento}
-              onChange={handleChange}
-              style={styles.select}
-              required
-            >
-              <option value="">Seleccione...</option>
-              {tiposDocumento.map(tipo => (
-                <option key={tipo._id} value={tipo._id}>
-                  {tipo.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={styles.half}>
-            <label style={styles.label}>Número de Documento:</label>
-            <input
-              type="text"
-              name="numero_documento"
-              value={formData.numero_documento}
-              onChange={handleChange}
-              style={styles.input}
-              placeholder="Ej: 123456789"
-              required
-            />
-          </div>
-        </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Caracterización:</label>
-          <select
-            name="caracterizacion"
-            value={formData.caracterizacion}
-            onChange={handleChange}
-            style={styles.select}
-            required
-          >
-            <option value="">Seleccione...</option>
-            {caracterizaciones.map(car => (
-              <option key={car._id} value={car._id}>
-                {car.tipo_caracterizacion}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={styles.row}>
-          <div style={styles.half}>
-            <label style={styles.label}>Teléfono:</label>
-            <input
-              type="tel"
-              name="telefono"
-              value={formData.telefono}
-              onChange={handleChange}
-              style={styles.input}
-              placeholder="Ej: 3001234567"
-              required
-            />
-          </div>
-          <div style={styles.half}>
-            <label style={styles.label}>Correo Electrónico:</label>
-            <input
-              type="email"
-              name="correo"
-              value={formData.correo}
-              onChange={handleChange}
-              style={styles.input}
-              placeholder="Ej: correo@ejemplo.com"
-              required
-            />
-          </div>
-        </div>
-
-        <div style={styles.formGroup}>
-          <label style={styles.label}>Cédula escaneada (PDF):</label>
-          <input
-            type="file"
-            name="pdf_cedula"
-            onChange={handleFileChange}
-            style={styles.fileInput}
-            accept=".pdf"
-            required
-          />
-          <small style={styles.fileHint}>Solo archivos PDF</small>
-        </div>
-
-        <button 
-          type="submit" 
-          style={loading ? {...styles.submitButton, ...styles.buttonDisabled} : styles.submitButton}
-          disabled={loading}
-        >
-          {loading ? 'Procesando inscripción...' : 'Inscribirme'}
-        </button>
-      </form>
     </div>
   );
-};
 
-const styles = {
-  container: {
-    maxWidth: '800px',
-    margin: '40px auto',
-    padding: '30px',
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    fontFamily: 'Arial, sans-serif'
-  },
-  title: {
-    color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: '30px',
-    borderBottom: '2px solid #3498db',
-    paddingBottom: '10px'
-  },
-  ofertaInfo: {
-    backgroundColor: '#f8f9fa',
-    padding: '15px',
-    borderRadius: '6px',
-    marginBottom: '25px',
-    border: '1px solid #e0e0e0'
-  },
-  subtitle: {
-    color: '#2c3e50',
-    marginTop: 0,
-    marginBottom: '10px',
-    fontSize: '16px'
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  row: {
-    display: 'flex',
-    gap: '20px'
-  },
-  half: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#34495e'
-  },
-  input: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    outline: 'none'
-  },
-  select: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    backgroundColor: 'white'
-  },
-  fileInput: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    backgroundColor: 'white'
-  },
-  fileHint: {
-    fontSize: '12px',
-    color: '#7f8c8d',
-    marginTop: '5px'
-  },
-  submitButton: {
-    backgroundColor: '#27ae60',
-    color: 'white',
-    padding: '15px',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    marginTop: '10px'
-  },
-  buttonDisabled: {
-    backgroundColor: '#95a5a6',
-    cursor: 'not-allowed'
-  },
-  errorAlert: {
-    backgroundColor: '#f8d7da',
-    color: '#721c24',
-    padding: '15px',
-    borderRadius: '4px',
-    marginBottom: '20px'
-  },
-  successAlert: {
-    backgroundColor: '#d4edda',
-    color: '#155724',
-    padding: '15px',
-    borderRadius: '4px',
-    marginBottom: '20px'
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '50px',
-    fontSize: '18px',
-    color: '#7f8c8d'
-  }
+  if (!oferta) return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+    }}>
+      <div className="error-box">El link de inscripción no es válido o ha expirado.</div>
+    </div>
+  );
+
+  return (
+    <>
+      <style>
+        {`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          .inscripcion-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%);
+            display: flex;
+            justify-content: center;
+            padding: 40px 24px;
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+          }
+          .inscripcion-wrapper {
+            max-width: 800px;
+            width: 100%;
+          }
+          .oferta-card {
+            background: linear-gradient(145deg, #00643C 0%, #004d2e 100%);
+            border-radius: 32px;
+            padding: 28px 32px;
+            margin-bottom: 28px;
+            color: white;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+          }
+          .oferta-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+          .logo-sena-blanco {
+            width: 40px;
+            height: auto;
+            filter: brightness(0) invert(1);
+          }
+          .oferta-brand {
+            font-size: 13px;
+            letter-spacing: 0.03em;
+            opacity: 0.8;
+          }
+          .oferta-titulo {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 0 0 20px;
+          }
+          .oferta-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+          }
+          .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.7;
+            letter-spacing: 0.05em;
+          }
+          .meta-value {
+            font-weight: 700;
+            font-size: 15px;
+          }
+          .code-value {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-family: monospace;
+            font-size: 13px;
+          }
+          .form-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 100, 60, 0.1);
+            padding: 32px 36px;
+            transition: transform 0.2s, box-shadow 0.2s;
+          }
+          .form-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 28px 48px rgba(0, 0, 0, 0.12), 0 12px 28px rgba(0, 100, 60, 0.15);
+          }
+          .form-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: #00643C;
+            margin: 0 0 6px;
+          }
+          .form-sub {
+            font-size: 14px;
+            color: #5a6e7c;
+            margin-bottom: 28px;
+          }
+          .error-box {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            color: #c53030;
+            border-radius: 20px;
+            padding: 12px 18px;
+            font-size: 13px;
+            margin-bottom: 24px;
+          }
+          .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #2e7d32;
+            color: #1b5e20;
+            border-radius: 20px;
+            padding: 16px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 24px;
+          }
+          .form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+          }
+          .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+          }
+          .field {
+            flex: 1;
+            min-width: 180px;
+          }
+          .field-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2d3748;
+            display: block;
+            margin-bottom: 6px;
+          }
+          .input, .select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #fefefe;
+            transition: all 0.2s;
+            outline: none;
+          }
+          .input:focus, .select:focus {
+            border-color: #00643C;
+            box-shadow: 0 0 0 3px rgba(0, 100, 60, 0.2);
+            background: white;
+          }
+          .file-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
+          .file-label {
+            background: white;
+            border: 1.5px dashed #cbd5e1;
+            border-radius: 40px;
+            padding: 10px 20px;
+            font-size: 13px;
+            color: #4a5568;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .file-label:hover {
+            background: #f7fafc;
+            border-color: #00643C;
+          }
+          .file-ok {
+            color: #2e7d32;
+            font-weight: 600;
+            font-size: 13px;
+          }
+          .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #00643C;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+          }
+          .submit-btn:hover:not(:disabled) {
+            background: #004d2e;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(0, 100, 60, 0.3);
+          }
+          .submit-btn:disabled {
+            background: #9bb7a8;
+            cursor: not-allowed;
+          }
+          @media (max-width: 640px) {
+            .inscripcion-container {
+              padding: 20px 16px;
+            }
+            .form-card {
+              padding: 24px 20px;
+            }
+            .oferta-card {
+              padding: 20px;
+            }
+            .row {
+              flex-direction: column;
+              gap: 16px;
+            }
+          }
+        `}
+      </style>
+
+      <div className="inscripcion-container">
+        <div className="inscripcion-wrapper">
+          {/* Tarjeta de la oferta */}
+          <div className="oferta-card">
+            <div className="oferta-header">
+              <img src="/logosena.png" alt="SENA" className="logo-sena-blanco" />
+              <span className="oferta-brand">SENA · Inscripción</span>
+            </div>
+            <h3 className="oferta-titulo">{oferta.programa_formacion?.nombre_programa}</h3>
+            <div className="oferta-meta">
+              <div className="meta-item">
+                <span className="meta-label">Código</span>
+                <code className="code-value">{oferta.programa_formacion?.codigo || '—'}</code>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Cupos disponibles</span>
+                <span className="meta-value">{oferta.cupos_disponibles}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Inicio</span>
+                <span className="meta-value">{fmt(oferta.fechas?.inicio)}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Cierre</span>
+                <span className="meta-value">{fmt(oferta.fechas?.fin)}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Municipio</span>
+                <span className="meta-value">{oferta.ubicacion?.municipio?.nombre || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Formulario */}
+          <div className="form-card">
+            <h2 className="form-title">Formulario de Inscripción</h2>
+            <p className="form-sub">Completa todos los campos para registrar tu inscripción.</p>
+
+            {error && <div className="error-box">{error}</div>}
+            {success && <div className="success-box">{success}</div>}
+
+            {!success && (
+              <form onSubmit={handleSubmit} className="form-grid">
+                <div className="row">
+                  <div className="field">
+                    <label className="field-label">Nombres</label>
+                    <input
+                      type="text"
+                      name="nombres"
+                      value={formData.nombres}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="Juan Carlos"
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Apellidos</label>
+                    <input
+                      type="text"
+                      name="apellidos"
+                      value={formData.apellidos}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="Pérez González"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="field">
+                    <label className="field-label">Tipo de documento</label>
+                    <select
+                      name="tipo_documento"
+                      value={formData.tipo_documento}
+                      onChange={handleChange}
+                      className="select"
+                      required
+                    >
+                      <option value="">Seleccione…</option>
+                      {tiposDocumento.map(t => (
+                        <option key={t._id} value={t._id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Número de documento</label>
+                    <input
+                      type="text"
+                      name="numero_documento"
+                      value={formData.numero_documento}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="123456789"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="field-label">Caracterización</label>
+                  <select
+                    name="caracterizacion"
+                    value={formData.caracterizacion}
+                    onChange={handleChange}
+                    className="select"
+                    required
+                  >
+                    <option value="">Seleccione…</option>
+                    {caracterizaciones.map(c => (
+                      <option key={c._id} value={c._id}>{c.tipo_caracterizacion}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="row">
+                  <div className="field">
+                    <label className="field-label">Teléfono</label>
+                    <input
+                      type="tel"
+                      name="telefono"
+                      value={formData.telefono}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="3001234567"
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="field-label">Correo electrónico</label>
+                    <input
+                      type="email"
+                      name="correo"
+                      value={formData.correo}
+                      onChange={handleChange}
+                      className="input"
+                      placeholder="correo@ejemplo.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="field-label">Cédula escaneada (PDF)</label>
+                  <div className="file-area">
+                    <input
+                      type="file"
+                      name="pdf_cedula"
+                      accept=".pdf"
+                      onChange={handleFile}
+                      style={{ display: 'none' }}
+                      id="pdf-cedula"
+                      required
+                    />
+                    <label htmlFor="pdf-cedula" className="file-label">
+                      {formData.pdf_cedula ? formData.pdf_cedula.name : 'Seleccionar archivo PDF…'}
+                    </label>
+                    {formData.pdf_cedula && (
+                      <span className="file-ok">✓ Archivo seleccionado</span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="submit-btn"
+                >
+                  {loading ? 'Procesando inscripción…' : 'Confirmar inscripción'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
 };
 
 export default FormularioInscripcion;

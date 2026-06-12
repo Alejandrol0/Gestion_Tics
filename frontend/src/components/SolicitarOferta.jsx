@@ -6,12 +6,14 @@ const SolicitarOferta = () => {
   const [ofertaSeleccionada, setOfertaSeleccionada] = useState(null);
   const [coordinador, setCoordinador] = useState(null);
   const [mensaje, setMensaje] = useState('');
+  const [inscritos, setInscritos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [inscritos, setInscritos] = useState([]);
+  const [archivos, setArchivos] = useState({
+    ficha: null, carta: null, excel: null, cedulas: null,
+  });
 
-  // Cargar ofertas del usuario y datos del coordinador
   useEffect(() => {
     cargarOfertas();
     cargarCoordinador();
@@ -19,12 +21,9 @@ const SolicitarOferta = () => {
 
   const cargarOfertas = async () => {
     try {
-      const response = await api.get('/ofertas/mis-ofertas');
-      setOfertas(response.data.data || []);
-    } catch (error) {
-      console.error('Error cargando ofertas:', error);
-      setError('Error al cargar las ofertas');
-    }
+      const res = await api.get('/ofertas/mis-ofertas');
+      setOfertas(res.data.data || []);
+    } catch { setError('Error al cargar las ofertas'); }
   };
 
   const cargarCoordinador = async () => {
@@ -33,439 +32,481 @@ const SolicitarOferta = () => {
       if (user.coordinadorAsignado) {
         setCoordinador(user.coordinadorAsignado);
       } else {
-        // Si no viene en el user, cargarlo del backend
-        const response = await api.get('/usuarios/coordinador');
-        setCoordinador(response.data.data);
+        const res = await api.get('/usuarios/coordinador');
+        setCoordinador(res.data.data);
       }
-    } catch (error) {
-      console.error('Error cargando coordinador:', error);
-    }
+    } catch { console.error('Error cargando coordinador'); }
   };
 
   const cargarInscritos = async (ofertaId) => {
     try {
-      const response = await api.get(`/inscripciones/oferta/${ofertaId}`);
-      setInscritos(response.data.data || []);
-    } catch (error) {
-      console.error('Error cargando inscritos:', error);
-    }
+      const res = await api.get(`/inscripciones/oferta/${ofertaId}`);
+      setInscritos(res.data.data || []);
+    } catch { console.error('Error cargando inscritos'); }
   };
 
-  const handleOfertaChange = async (e) => {
-    const ofertaId = e.target.value;
-    if (!ofertaId) {
-      setOfertaSeleccionada(null);
-      setInscritos([]);
-      return;
-    }
-
-    const oferta = ofertas.find(o => o._id === ofertaId);
+  const handleOfertaChange = async e => {
+    const id = e.target.value;
+    if (!id) { setOfertaSeleccionada(null); setInscritos([]); return; }
+    const oferta = ofertas.find(o => o._id === id);
     setOfertaSeleccionada(oferta);
-    await cargarInscritos(ofertaId);
+    await cargarInscritos(id);
   };
 
-  const handleSubmit = async (e) => {
+  const handleArchivo = (campo, e) =>
+    setArchivos({ ...archivos, [campo]: e.target.files[0] });
+
+  const handleSubmit = async e => {
     e.preventDefault();
-    if (!ofertaSeleccionada) {
-      setError('Debe seleccionar una oferta');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
+    if (!ofertaSeleccionada) return setError('Debe seleccionar una oferta');
+    setLoading(true); setError(''); setSuccess('');
     try {
-      // Crear FormData para enviar archivos
-      const formData = new FormData();
-      formData.append('oferta_id', ofertaSeleccionada._id);
-      formData.append('mensaje', mensaje);
-      
-      // Aquí podrías adjuntar archivos adicionales si es necesario
-      // formData.append('archivo_extra', archivoExtra);
-
-      const response = await api.post('/solicitudes/validacion', {
-        oferta_id: ofertaSeleccionada._id,
-        mensaje: mensaje
-      });
-
-      setSuccess('✅ Solicitud enviada exitosamente al coordinador');
-      setTimeout(() => setSuccess(''), 5000);
-      
-    } catch (error) {
-      console.error('Error enviando solicitud:', error);
-      setError(error.response?.data?.message || 'Error al enviar la solicitud');
+      const fd = new FormData();
+      fd.append('oferta_id', ofertaSeleccionada._id);
+      fd.append('mensaje', mensaje);
+      Object.entries(archivos).forEach(([k, v]) => { if (v) fd.append(k, v); });
+      await api.post('/solicitudes', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setSuccess('Solicitud enviada correctamente. Tu coordinador recibirá una notificación.');
+      setMensaje('');
+      setArchivos({ ficha: null, carta: null, excel: null, cedulas: null });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error al enviar la solicitud');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-CO');
-  };
+  const fmt = d => d ? new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  const docs = [
+    { key: 'ficha',   label: 'Ficha de caracterización',  desc: 'Documento PDF de la ficha' },
+    { key: 'carta',   label: 'Carta de solicitud',        desc: 'Carta firmada dirigida al coordinador' },
+    { key: 'excel',   label: 'Listado de inscritos',      desc: 'Archivo Excel con los datos' },
+    { key: 'cedulas', label: 'Cédulas de inscritos',      desc: 'Carpeta ZIP o PDF compilado' },
+  ];
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>📤 Solicitar Validación de Oferta</h2>
-      <p style={styles.subtitle}>
-        Envía todos los documentos de la oferta para su revisión por tu coordinador asignado
-      </p>
+    <>
+      <style>
+        {`
+          .solicitar-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%);
+            padding: 40px 24px;
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+          }
+          .solicitar-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 100, 60, 0.1);
+            padding: 32px 36px;
+            max-width: 800px;
+            margin: 0 auto;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+          }
+          .solicitar-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 28px 48px rgba(0, 0, 0, 0.12), 0 12px 28px rgba(0, 100, 60, 0.15);
+          }
+          .page-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid #eef2f6;
+            padding-bottom: 20px;
+          }
+          .logo {
+            width: 56px;
+            height: auto;
+          }
+          .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00643C;
+            margin: 0;
+          }
+          .page-sub {
+            font-size: 14px;
+            color: #5a6e7c;
+            margin: 6px 0 0;
+          }
+          .error-box {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            color: #c53030;
+            border-radius: 20px;
+            padding: 12px 18px;
+            font-size: 13px;
+            margin-bottom: 24px;
+          }
+          .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #2e7d32;
+            color: #1b5e20;
+            border-radius: 20px;
+            padding: 12px 18px;
+            font-size: 13px;
+            margin-bottom: 24px;
+          }
+          .coord-card {
+            background: #e8f5e9;
+            border: 1px solid #c8e6d9;
+            border-radius: 28px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+          }
+          .coord-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #00643C;
+            color: #FFD966;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+            flex-shrink: 0;
+          }
+          .coord-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #2d6a4f;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0 0 4px;
+          }
+          .coord-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0F2B46;
+            margin: 0 0 2px;
+          }
+          .coord-email {
+            font-size: 13px;
+            color: #4a5568;
+            margin: 0;
+          }
+          .form-card {
+            background: white;
+            border-radius: 28px;
+            border: 1px solid #edf2f7;
+            padding: 0;
+            margin-top: 0;
+          }
+          .section {
+            margin-bottom: 28px;
+          }
+          .section-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #00643C;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #eef2f6;
+          }
+          .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+          }
+          .field-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2d3748;
+          }
+          .input, .select {
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #fefefe;
+            transition: all 0.2s;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .input:focus, .select:focus {
+            border-color: #00643C;
+            box-shadow: 0 0 0 3px rgba(0, 100, 60, 0.2);
+            background: white;
+          }
+          .oferta-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 24px;
+            border: 1px solid #e2e8f0;
+          }
+          .preview-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .preview-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+          .preview-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0F2B46;
+          }
+          .docs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+          }
+          .doc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            gap: 16px;
+          }
+          .doc-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .doc-title {
+            font-weight: 700;
+            font-size: 13.5px;
+            color: #1e293b;
+          }
+          .doc-desc {
+            font-size: 12px;
+            color: #94a3b8;
+          }
+          .upload-btn {
+            padding: 6px 18px;
+            background: transparent;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 40px;
+            color: #475569;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-block;
+          }
+          .upload-btn:hover {
+            background: #edf2f7;
+            border-color: #00643C;
+          }
+          .upload-done {
+            background: #e8f5e9;
+            border-color: #2e7d32;
+            color: #2e7d32;
+          }
+          .textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #fefefe;
+            resize: vertical;
+            transition: all 0.2s;
+            outline: none;
+            box-sizing: border-box;
+          }
+          .textarea:focus {
+            border-color: #00643C;
+            box-shadow: 0 0 0 3px rgba(0, 100, 60, 0.2);
+          }
+          .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #00643C;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 12px;
+          }
+          .submit-btn:hover:not(:disabled) {
+            background: #004d2e;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(0, 100, 60, 0.3);
+          }
+          .submit-btn:disabled {
+            background: #9bb7a8;
+            cursor: not-allowed;
+          }
+          @media (max-width: 640px) {
+            .solicitar-container {
+              padding: 20px 16px;
+            }
+            .solicitar-card {
+              padding: 24px 20px;
+            }
+            .page-header {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .doc-item {
+              flex-direction: column;
+              align-items: stretch;
+            }
+            .upload-btn {
+              text-align: center;
+            }
+          }
+        `}
+      </style>
 
-      {/* Información del Coordinador */}
-      {coordinador && (
-        <div style={styles.coordinadorCard}>
-          <h3 style={styles.coordinadorTitle}>👤 Coordinador Asignado</h3>
-          <div style={styles.coordinadorInfo}>
-            <p><strong>Nombre:</strong> {coordinador.nombre || 'Jose Alirio Cobo Lemos'}</p>
-            <p><strong>Email:</strong> {coordinador.email || 'jcobo@sena.edu.co'}</p>
-            <p><strong>Teléfono:</strong> {coordinador.telefono || '3226784590'}</p>
-            <p><strong>Identificación:</strong> {coordinador.identificacion || '10671330'}</p>
+      <div className="solicitar-container">
+        <div className="solicitar-card">
+          <div className="page-header">
+            <img src="/logosena.png" alt="SENA" className="logo" />
+            <div>
+              <h1 className="page-title">Enviar Solicitud de Validación</h1>
+              <p className="page-sub">
+                Envía la documentación de tu oferta al coordinador para su revisión y aprobación.
+              </p>
+            </div>
           </div>
-        </div>
-      )}
 
-      {error && <div style={styles.errorAlert}>❌ {error}</div>}
-      {success && <div style={styles.successAlert}>{success}</div>}
+          {error && <div className="error-box">{error}</div>}
+          {success && <div className="success-box">{success}</div>}
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        
-        {/* Selección de Oferta */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>📋 Seleccionar Oferta</h3>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Seleccione la oferta a enviar:</label>
-            <select
-              onChange={handleOfertaChange}
-              style={styles.select}
-              required
+          {/* Tarjeta del coordinador */}
+          {coordinador && (
+            <div className="coord-card">
+              <div className="coord-icon">
+                {((coordinador.nombre?.[0] || '') + (coordinador.apellido?.[0] || '')).toUpperCase() || 'C'}
+              </div>
+              <div>
+                <p className="coord-label">Tu coordinador asignado</p>
+                <p className="coord-name">{coordinador.nombre || 'Coordinador'}</p>
+                {coordinador.correoElectronico && (
+                  <p className="coord-email">{coordinador.correoElectronico}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {/* Sección: Oferta */}
+            <div className="section">
+              <h3 className="section-title">Oferta a solicitar</h3>
+              <div className="field">
+                <label className="field-label">Selecciona la oferta</label>
+                <select onChange={handleOfertaChange} className="select" required>
+                  <option value="">Elige una oferta…</option>
+                  {ofertas.map(o => (
+                    <option key={o._id} value={o._id}>
+                      {o.programa_formacion?.nombre_programa} — {o.programa_formacion?.codigo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {ofertaSeleccionada && (
+                <div className="oferta-preview">
+                  <div className="preview-item">
+                    <span className="preview-label">Programa</span>
+                    <span className="preview-value">{ofertaSeleccionada.programa_formacion?.nombre_programa || '—'}</span>
+                  </div>
+                  <div className="preview-item">
+                    <span className="preview-label">Código</span>
+                    <span className="preview-value">{ofertaSeleccionada.programa_formacion?.codigo || '—'}</span>
+                  </div>
+                  <div className="preview-item">
+                    <span className="preview-label">Inicio</span>
+                    <span className="preview-value">{fmt(ofertaSeleccionada.fechas?.inicio)}</span>
+                  </div>
+                  <div className="preview-item">
+                    <span className="preview-label">Fin</span>
+                    <span className="preview-value">{fmt(ofertaSeleccionada.fechas?.fin)}</span>
+                  </div>
+                  <div className="preview-item">
+                    <span className="preview-label">Inscritos</span>
+                    <span className="preview-value">{inscritos.length}</span>
+                  </div>
+                  <div className="preview-item">
+                    <span className="preview-label">Cupo máximo</span>
+                    <span className="preview-value">{ofertaSeleccionada.cupo_maximo ?? '—'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sección: Documentos */}
+            <div className="section">
+              <h3 className="section-title">Documentos adjuntos</h3>
+              <div className="docs-list">
+                {docs.map(d => (
+                  <div key={d.key} className="doc-item">
+                    <div className="doc-info">
+                      <span className="doc-title">{d.label}</span>
+                      <span className="doc-desc">{d.desc}</span>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        id={`file-${d.key}`}
+                        style={{ display: 'none' }}
+                        onChange={e => handleArchivo(d.key, e)}
+                      />
+                      <label
+                        htmlFor={`file-${d.key}`}
+                        className={`upload-btn ${archivos[d.key] ? 'upload-done' : ''}`}
+                      >
+                        {archivos[d.key] ? '✓ Cargado' : 'Adjuntar'}
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sección: Mensaje */}
+            <div className="section">
+              <h3 className="section-title">Mensaje al coordinador (opcional)</h3>
+              <textarea
+                value={mensaje}
+                onChange={e => setMensaje(e.target.value)}
+                rows={4}
+                className="textarea"
+                placeholder="Agrega cualquier comentario o aclaración para tu coordinador…"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="submit-btn"
             >
-              <option value="">-- Seleccione una oferta --</option>
-              {ofertas.map(oferta => (
-                <option key={oferta._id} value={oferta._id}>
-                  {oferta.programa_formacion?.nombre_programa} - {oferta.programa_formacion?.codigo}
-                </option>
-              ))}
-            </select>
-          </div>
+              {loading ? 'Enviando solicitud…' : 'Enviar solicitud de validación'}
+            </button>
+          </form>
         </div>
-
-        {/* Información de la Oferta Seleccionada */}
-        {ofertaSeleccionada && (
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>📊 Información de la Oferta</h3>
-            <div style={styles.ofertaGrid}>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Código:</span>
-                <span style={styles.ofertaValue}>{ofertaSeleccionada.programa_formacion?.codigo}</span>
-              </div>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Programa:</span>
-                <span style={styles.ofertaValue}>{ofertaSeleccionada.programa_formacion?.nombre_programa}</span>
-              </div>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Tipo de Programa:</span>
-                <span style={styles.ofertaValue}>
-                  {ofertaSeleccionada.es_campesena ? 'Campesena' : 'Regular'}
-                </span>
-              </div>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Tipo de Oferta:</span>
-                <span style={styles.ofertaValue}>{ofertaSeleccionada.tipo_oferta?.nombre || 'N/A'}</span>
-              </div>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Estado:</span>
-                {/* 🔥 CORREGIDO: mostrar el nombre del estado */}
-                <span style={styles.ofertaValue}>
-                  {ofertaSeleccionada.estado?.nombre || ofertaSeleccionada.estado?.codigo || 'pendiente'}
-                </span>
-              </div>
-              <div style={styles.ofertaItem}>
-                <span style={styles.ofertaLabel}>Fecha Inicio:</span>
-                <span style={styles.ofertaValue}>{formatDate(ofertaSeleccionada.fechas?.inicio)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Documentos a Enviar */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>📎 Documentos para Enviar</h3>
-          
-          <div style={styles.documentosList}>
-            {/* Ficha de Caracterización - SIEMPRE DISPONIBLE */}
-            <div style={styles.documentoItem}>
-              <div style={styles.documentoIcon}>📄</div>
-              <div style={styles.documentoInfo}>
-                <h4 style={styles.documentoTitulo}>Ficha de Caracterización</h4>
-                <p style={styles.documentoDesc}>Documento PDF generado automáticamente con la información de la oferta.</p>
-              </div>
-              <span style={styles.documentoEstado}>✅ Disponible</span>
-            </div>
-
-            {/* Carta de Presentación - VERIFICAR SI EXISTE */}
-            <div style={styles.documentoItem}>
-              <div style={styles.documentoIcon}>📋</div>
-              <div style={styles.documentoInfo}>
-                <h4 style={styles.documentoTitulo}>Carta de Presentación</h4>
-                <p style={styles.documentoDesc}>Documento PDF con la carta de presentación.</p>
-              </div>
-              <span style={ofertaSeleccionada?.carta_pdf ? styles.documentoEstado : styles.documentoNoDisponible}>
-                {ofertaSeleccionada?.carta_pdf ? '✅ Adjunta' : '❌ No disponible'}
-              </span>
-            </div>
-
-            {/* Listado de Cédulas (Excel) - VERIFICAR SI HAY INSCRITOS */}
-            <div style={styles.documentoItem}>
-              <div style={styles.documentoIcon}>📊</div>
-              <div style={styles.documentoInfo}>
-                <h4 style={styles.documentoTitulo}>Listado de Cédulas (Excel)</h4>
-                <p style={styles.documentoDesc}>Archivo Excel con el listado de aspirantes inscritos.</p>
-              </div>
-              <span style={inscritos.length > 0 ? styles.documentoEstado : styles.documentoNoDisponible}>
-                {inscritos.length > 0 ? `✅ ${inscritos.length} inscritos` : '❌ Sin inscritos'}
-              </span>
-            </div>
-
-            {/* Cédulas Escaneadas (PDF) - VERIFICAR SI HAY INSCRITOS */}
-            <div style={styles.documentoItem}>
-              <div style={styles.documentoIcon}>📑</div>
-              <div style={styles.documentoInfo}>
-                <h4 style={styles.documentoTitulo}>Cédulas Escaneadas (PDF)</h4>
-                <p style={styles.documentoDesc}>Documento PDF combinado con todas las cédulas de los aspirantes.</p>
-              </div>
-              <span style={inscritos.length > 0 ? styles.documentoEstado : styles.documentoNoDisponible}>
-                {inscritos.length > 0 ? '✅ Disponible' : '❌ Sin cédulas'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Mensaje para el coordinador */}
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>📝 Mensaje para el coordinador</h3>
-          <div style={styles.formGroup}>
-            <textarea
-              value={mensaje}
-              onChange={(e) => setMensaje(e.target.value)}
-              style={styles.textarea}
-              rows="4"
-              placeholder="Escriba un mensaje adicional para el coordinador (opcional)..."
-            />
-          </div>
-        </div>
-
-        {/* Botón de envío */}
-        <div style={styles.footer}>
-          <div style={styles.destinatarioInfo}>
-            <strong>Destinatario:</strong> {coordinador?.nombre || 'Coordinador'} - Todas las ofertas se envían al coordinador asignado
-          </div>
-          <button
-            type="submit"
-            style={loading ? {...styles.submitButton, ...styles.buttonDisabled} : styles.submitButton}
-            disabled={loading || !ofertaSeleccionada}
-          >
-            {loading ? 'Enviando...' : '📤 Enviar Solicitud a Coordinador'}
-          </button>
-        </div>
-      </form>
-    </div>
+      </div>
+    </>
   );
-};
-
-const styles = {
-  container: {
-    maxWidth: '900px',
-    margin: '0 auto',
-    padding: '20px',
-    fontFamily: 'Arial, sans-serif'
-  },
-  title: {
-    color: '#2c3e50',
-    borderBottom: '3px solid #3498db',
-    paddingBottom: '10px',
-    marginBottom: '10px',
-    fontSize: '24px'
-  },
-  subtitle: {
-    color: '#7f8c8d',
-    marginBottom: '25px',
-    fontSize: '14px'
-  },
-  coordinadorCard: {
-    backgroundColor: '#e8f4fd',
-    padding: '20px',
-    borderRadius: '8px',
-    marginBottom: '25px',
-    border: '1px solid #3498db'
-  },
-  coordinadorTitle: {
-    color: '#2c3e50',
-    margin: '0 0 15px 0',
-    fontSize: '18px'
-  },
-  coordinadorInfo: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '10px'
-  },
-  section: {
-    backgroundColor: '#f8f9fa',
-    padding: '20px',
-    borderRadius: '8px',
-    marginBottom: '25px',
-    border: '1px solid #e0e0e0'
-  },
-  sectionTitle: {
-    color: '#2c3e50',
-    marginTop: 0,
-    marginBottom: '20px',
-    fontSize: '18px',
-    borderBottom: '1px solid #3498db',
-    paddingBottom: '5px'
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  label: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#34495e'
-  },
-  select: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    backgroundColor: 'white',
-    cursor: 'pointer'
-  },
-  ofertaGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '15px'
-  },
-  ofertaItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px',
-    padding: '10px',
-    backgroundColor: 'white',
-    borderRadius: '4px',
-    border: '1px solid #e0e0e0'
-  },
-  ofertaLabel: {
-    fontSize: '12px',
-    color: '#7f8c8d',
-    textTransform: 'uppercase'
-  },
-  ofertaValue: {
-    fontSize: '14px',
-    fontWeight: 'bold',
-    color: '#2c3e50'
-  },
-  documentosList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px'
-  },
-  documentoItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-    padding: '15px',
-    backgroundColor: 'white',
-    borderRadius: '6px',
-    border: '1px solid #e0e0e0'
-  },
-  documentoIcon: {
-    fontSize: '24px',
-    width: '40px',
-    textAlign: 'center'
-  },
-  documentoInfo: {
-    flex: 1
-  },
-  documentoTitulo: {
-    margin: '0 0 5px 0',
-    fontSize: '15px',
-    color: '#2c3e50'
-  },
-  documentoDesc: {
-    margin: 0,
-    fontSize: '13px',
-    color: '#7f8c8d'
-  },
-  documentoEstado: {
-    fontSize: '13px',
-    fontWeight: 'bold',
-    color: '#27ae60',
-    minWidth: '100px',
-    textAlign: 'right'
-  },
-  documentoPendiente: {
-    fontSize: '13px',
-    fontWeight: 'bold',
-    color: '#e67e22',
-    minWidth: '100px',
-    textAlign: 'right'
-  },
-  textarea: {
-    padding: '10px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '14px',
-    resize: 'vertical',
-    fontFamily: 'Arial, sans-serif'
-  },
-  footer: {
-    marginTop: '20px',
-    padding: '20px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px',
-    border: '1px solid #e0e0e0'
-  },
-  destinatarioInfo: {
-    marginBottom: '15px',
-    fontSize: '14px',
-    color: '#34495e',
-    padding: '10px',
-    backgroundColor: '#e8f4fd',
-    borderRadius: '4px'
-  },
-  submitButton: {
-    width: '100%',
-    backgroundColor: '#27ae60',
-    color: 'white',
-    padding: '15px',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
-  },
-  buttonDisabled: {
-    backgroundColor: '#95a5a6',
-    cursor: 'not-allowed'
-  },
-  errorAlert: {
-    backgroundColor: '#f8d7da',
-    color: '#721c24',
-    padding: '12px',
-    borderRadius: '4px',
-    marginBottom: '20px'
-  },
-  successAlert: {
-    backgroundColor: '#d4edda',
-    color: '#155724',
-    padding: '12px',
-    borderRadius: '4px',
-    marginBottom: '20px'
-  }
 };
 
 export default SolicitarOferta;

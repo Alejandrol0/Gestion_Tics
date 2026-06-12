@@ -15,207 +15,383 @@ const SolicitudesPendientes = () => {
   const cargarSolicitudes = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/solicitudes/pendientes');
-      setSolicitudes(response.data.data || []);
-    } catch (error) {
-      console.error('Error cargando solicitudes:', error);
+      const res = await api.get('/solicitudes/pendientes');
+      setSolicitudes(res.data.data || []);
+    } catch {
       setError('Error al cargar las solicitudes');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSolicitudActualizada = () => {
+  const handleActualizada = () => {
     setSolicitudSeleccionada(null);
     cargarSolicitudes();
   };
 
-  if (loading) {
-    return <div style={styles.loading}>Cargando solicitudes...</div>;
-  }
+  const fmt = (d) =>
+    d
+      ? new Date(d).toLocaleDateString('es-CO', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '—';
+
+  if (loading)
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Segoe UI', 'Roboto', sans-serif",
+          fontSize: '14px',
+          color: '#2d6a4f',
+        }}
+      >
+        Cargando solicitudes…
+      </div>
+    );
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>✅ Solicitudes de Validación Pendientes</h2>
-      
-      {error && <div style={styles.errorAlert}>❌ {error}</div>}
+    <>
+      <style>
+        {`
+          .solicitudes-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6d9 100%);
+            padding: 40px 24px;
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+          }
+          .solicitudes-card {
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 100, 60, 0.1);
+            padding: 32px 36px;
+            max-width: 1200px;
+            margin: 0 auto;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+          }
+          .solicitudes-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 28px 48px rgba(0, 0, 0, 0.12), 0 12px 28px rgba(0, 100, 60, 0.15);
+          }
+          .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid #eef2f6;
+            padding-bottom: 20px;
+          }
+          .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+          }
+          .logo {
+            width: 56px;
+            height: auto;
+          }
+          .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #00643C;
+            margin: 0;
+          }
+          .page-sub {
+            font-size: 14px;
+            color: #5a6e7c;
+            margin: 6px 0 0;
+          }
+          .pendiente-badge {
+            background: #fff8e1;
+            color: #b76e0e;
+            border: 1px solid #ffe082;
+            border-radius: 40px;
+            padding: 6px 18px;
+            font-size: 13px;
+            font-weight: 700;
+          }
+          .error-box {
+            background: #fff5f5;
+            border-left: 4px solid #e53e3e;
+            color: #c53030;
+            border-radius: 16px;
+            padding: 12px 18px;
+            font-size: 13px;
+            margin-bottom: 24px;
+          }
+          .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: #fafcff;
+            border-radius: 24px;
+            border: 1.5px dashed #cbd5e1;
+          }
+          .empty-title {
+            font-weight: 700;
+            color: #00643C;
+            margin-bottom: 8px;
+            font-size: 18px;
+          }
+          .empty-sub {
+            color: #64748b;
+            font-size: 13px;
+          }
+          .solicitudes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .solicitud-card {
+            background: white;
+            border-radius: 24px;
+            border: 1px solid #edf2f7;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s;
+          }
+          .solicitud-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
+          }
+          .solicitud-info {
+            flex: 1;
+          }
+          .programa-nombre {
+            font-weight: 700;
+            font-size: 16px;
+            color: #0F2B46;
+            margin-bottom: 10px;
+          }
+          .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 12px;
+          }
+          .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+          }
+          .meta-label {
+            color: #94a3b8;
+            font-weight: 600;
+          }
+          .meta-value {
+            color: #1e293b;
+            font-weight: 500;
+          }
+          .code-badge {
+            background: #edf2f7;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 11.5px;
+            font-family: monospace;
+            color: #2d3748;
+          }
+          .mensaje-box {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 10px 14px;
+            font-size: 12.5px;
+            color: #334155;
+            margin-top: 8px;
+            border-left: 3px solid #FFD966;
+          }
+          .mensaje-label {
+            font-weight: 700;
+            color: #00643C;
+            margin-right: 6px;
+          }
+          .solicitud-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+            flex-shrink: 0;
+          }
+          .estado-tag {
+            background: #fff8e1;
+            color: #b76e0e;
+            padding: 4px 14px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 700;
+          }
+          .btn-revisar {
+            padding: 8px 24px;
+            background: #00643C;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .btn-revisar:hover {
+            background: #004d2e;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 100, 60, 0.3);
+          }
+          /* Modal */
+          .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+          }
+          .modal-container {
+            width: 100%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 32px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+          }
+          @media (max-width: 768px) {
+            .solicitudes-card {
+              padding: 20px 16px;
+            }
+            .page-header {
+              flex-direction: column;
+              align-items: stretch;
+            }
+            .header-left {
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .solicitud-card {
+              flex-direction: column;
+              align-items: stretch;
+            }
+            .solicitud-actions {
+              flex-direction: row;
+              justify-content: space-between;
+              align-items: center;
+            }
+          }
+        `}
+      </style>
 
-      {solicitudes.length === 0 ? (
-        <div style={styles.noData}>
-          <p>📭 No hay solicitudes pendientes</p>
-          <p style={styles.noDataSub}>Los instructores aún no han enviado solicitudes</p>
-        </div>
-      ) : (
-        <div style={styles.grid}>
-          {solicitudes.map((solicitud) => (
-            <div key={solicitud._id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h3 style={styles.cardTitle}>
-                  {solicitud.oferta_id?.programa_formacion?.nombre_programa}
-                </h3>
-                <span style={styles.cardBadge}>Pendiente</span>
-              </div>
-              
-              <div style={styles.cardBody}>
-                <p><strong>👤 Instructor:</strong> {solicitud.instructor_id?.nombre} {solicitud.instructor_id?.apellido}</p>
-                <p><strong>📧 Email:</strong> {solicitud.instructor_id?.correoElectronico}</p>
-                <p><strong>📌 Código:</strong> {solicitud.oferta_id?.programa_formacion?.codigo}</p>
-                <p><strong>📅 Fecha:</strong> {new Date(solicitud.fecha_solicitud).toLocaleDateString()}</p>
-                {solicitud.mensaje && (
-                  <div style={styles.mensaje}>
-                    <strong>💬 Mensaje:</strong>
-                    <p>{solicitud.mensaje}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div style={styles.cardFooter}>
-                <button 
-                  onClick={() => setSolicitudSeleccionada(solicitud._id)}
-                  style={styles.revisarButton}
-                >
-                  Revisar Solicitud
-                </button>
+      <div className="solicitudes-container">
+        <div className="solicitudes-card">
+          <div className="page-header">
+            <div className="header-left">
+              <img src="/logosena.png" alt="SENA" className="logo" />
+              <div>
+                <h1 className="page-title">Solicitudes Pendientes</h1>
+                <p className="page-sub">
+                  {solicitudes.length} solicitud
+                  {solicitudes.length !== 1 ? 'es' : ''} en espera de revisión
+                </p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            {solicitudes.length > 0 && (
+              <span className="pendiente-badge">
+                {solicitudes.length} pendiente{solicitudes.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
 
-      {/* Modal para revisar solicitud */}
+          {error && <div className="error-box">{error}</div>}
+
+          {solicitudes.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-title">Sin solicitudes pendientes</div>
+              <div className="empty-sub">
+                Los instructores aún no han enviado solicitudes de validación.
+              </div>
+            </div>
+          ) : (
+            <div className="solicitudes-list">
+              {solicitudes.map((sol) => (
+                <div key={sol._id} className="solicitud-card">
+                  <div className="solicitud-info">
+                    <div className="programa-nombre">
+                      {sol.oferta_id?.programa_formacion?.nombre_programa ||
+                        'Programa sin nombre'}
+                    </div>
+                    <div className="meta-row">
+                      <div className="meta-item">
+                        <span className="meta-label">Instructor:</span>
+                        <span className="meta-value">
+                          {sol.instructor_id?.nombre || ''}{' '}
+                          {sol.instructor_id?.apellido || ''}
+                        </span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-label">Código:</span>
+                        <code className="code-badge">
+                          {sol.oferta_id?.programa_formacion?.codigo || '—'}
+                        </code>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-label">Solicitado:</span>
+                        <span className="meta-value">
+                          {fmt(sol.fecha_solicitud)}
+                        </span>
+                      </div>
+                    </div>
+                    {sol.mensaje && (
+                      <div className="mensaje-box">
+                        <span className="mensaje-label">Mensaje:</span> {sol.mensaje}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="solicitud-actions">
+                    <span className="estado-tag">Pendiente</span>
+                    <button
+                      className="btn-revisar"
+                      onClick={() => setSolicitudSeleccionada(sol._id)}
+                    >
+                      Revisar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal */}
       {solicitudSeleccionada && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContent}>
+        <div
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setSolicitudSeleccionada(null)}
+        >
+          <div className="modal-container">
             <RevisarSolicitud
               solicitudId={solicitudSeleccionada}
               onClose={() => setSolicitudSeleccionada(null)}
-              onActualizar={handleSolicitudActualizada}
+              onActualizar={handleActualizada}
             />
           </div>
         </div>
       )}
-    </div>
+    </>
   );
-};
-
-const styles = {
-  container: {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '20px',
-    fontFamily: 'Arial, sans-serif'
-  },
-  title: {
-    color: '#2c3e50',
-    borderBottom: '3px solid #00643C',
-    paddingBottom: '10px',
-    marginBottom: '20px',
-    fontSize: '24px'
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '50px',
-    fontSize: '18px',
-    color: '#7f8c8d'
-  },
-  noData: {
-    textAlign: 'center',
-    padding: '50px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px',
-    color: '#2c3e50',
-    border: '1px dashed #00643C'
-  },
-  noDataSub: {
-    color: '#7f8c8d',
-    fontSize: '14px',
-    marginTop: '10px'
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-    gap: '20px'
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    overflow: 'hidden',
-    border: '1px solid #e0e0e0'
-  },
-  cardHeader: {
-    backgroundColor: '#f39c12',
-    color: 'white',
-    padding: '15px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  cardTitle: {
-    margin: 0,
-    fontSize: '16px',
-    fontWeight: 'bold'
-  },
-  cardBadge: {
-    backgroundColor: '#2c3e50',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    fontSize: '12px',
-    fontWeight: 'bold'
-  },
-  cardBody: {
-    padding: '15px',
-    borderBottom: '1px solid #e0e0e0'
-  },
-  mensaje: {
-    backgroundColor: '#f8f9fa',
-    padding: '10px',
-    borderRadius: '4px',
-    marginTop: '10px',
-    fontStyle: 'italic',
-    fontSize: '13px'
-  },
-  cardFooter: {
-    padding: '15px',
-    backgroundColor: '#f8f9fa'
-  },
-  revisarButton: {
-    width: '100%',
-    padding: '10px',
-    backgroundColor: '#00643C',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold'
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000
-  },
-  modalContent: {
-    maxWidth: '900px',
-    width: '90%',
-    maxHeight: '90vh',
-    overflowY: 'auto',
-    borderRadius: '12px'
-  },
-  errorAlert: {
-    backgroundColor: '#f8d7da',
-    color: '#721c24',
-    padding: '12px',
-    borderRadius: '4px',
-    marginBottom: '20px'
-  }
 };
 
 export default SolicitudesPendientes;

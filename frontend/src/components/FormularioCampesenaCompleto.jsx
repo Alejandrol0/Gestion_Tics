@@ -3,23 +3,21 @@ import React, { useState } from 'react';
 const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
   const [instructores, setInstructores] = useState([
     {
-      id: Date.now(), // ID único temporal
+      id: Date.now(),
       tipo: 'Técnico',
       tipo_identificacion: 'CC',
       identificacion: '',
       nombre: '',
       correo: '',
       celular: '',
-      programacion: [] // Array de meses con rangos de fechas
+      programacion: []
     }
   ]);
 
-  // ===== FUNCIONES PARA MANEJAR INSTRUCTORES =====
-
-  // Agregar un nuevo instructor
+  // ===== Funciones de manejo (sin cambios en la lógica) =====
   const agregarInstructor = () => {
     const nuevoInstructor = {
-      id: Date.now() + Math.random(), // ID único
+      id: Date.now() + Math.random(),
       tipo: 'Técnico',
       tipo_identificacion: 'CC',
       identificacion: '',
@@ -33,36 +31,28 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Eliminar un instructor
   const eliminarInstructor = (id) => {
     const nuevosInstructores = instructores.filter(inst => inst.id !== id);
     setInstructores(nuevosInstructores);
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Actualizar campos de un instructor específico
   const actualizarCampo = (id, campo, valor) => {
-    const nuevosInstructores = instructores.map(inst => {
-      if (inst.id === id) {
-        return { ...inst, [campo]: valor };
-      }
-      return inst;
-    });
+    const nuevosInstructores = instructores.map(inst =>
+      inst.id === id ? { ...inst, [campo]: valor } : inst
+    );
     setInstructores(nuevosInstructores);
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Agregar un nuevo mes a un instructor específico
   const agregarMes = (id) => {
     const nuevosInstructores = instructores.map(inst => {
       if (inst.id === id) {
         const numMes = inst.programacion.length + 1;
-        const nuevoInstructor = { ...inst };
-        nuevoInstructor.programacion.push({
-          mes: numMes,
-          rangos: []
-        });
-        return nuevoInstructor;
+        return {
+          ...inst,
+          programacion: [...inst.programacion, { mes: numMes, rangos: [] }]
+        };
       }
       return inst;
     });
@@ -70,18 +60,17 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Agregar un nuevo rango a un mes específico
   const agregarRango = (id, indexMes) => {
     const nuevosInstructores = instructores.map(inst => {
       if (inst.id === id) {
-        const nuevoInstructor = { ...inst };
-        nuevoInstructor.programacion[indexMes].rangos.push({
+        const nuevaProgramacion = [...inst.programacion];
+        nuevaProgramacion[indexMes].rangos.push({
           desde: '',
           hasta: '',
           hora_inicio: '08:00',
           hora_fin: '16:00'
         });
-        return nuevoInstructor;
+        return { ...inst, programacion: nuevaProgramacion };
       }
       return inst;
     });
@@ -89,13 +78,12 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Actualizar un campo de rango específico
   const actualizarRango = (id, indexMes, indexRango, campo, valor) => {
     const nuevosInstructores = instructores.map(inst => {
       if (inst.id === id) {
-        const nuevoInstructor = { ...inst };
-        nuevoInstructor.programacion[indexMes].rangos[indexRango][campo] = valor;
-        return nuevoInstructor;
+        const nuevaProgramacion = [...inst.programacion];
+        nuevaProgramacion[indexMes].rangos[indexRango][campo] = valor;
+        return { ...inst, programacion: nuevaProgramacion };
       }
       return inst;
     });
@@ -103,13 +91,12 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Eliminar un rango específico
   const eliminarRango = (id, indexMes, indexRango) => {
     const nuevosInstructores = instructores.map(inst => {
       if (inst.id === id) {
-        const nuevoInstructor = { ...inst };
-        nuevoInstructor.programacion[indexMes].rangos.splice(indexRango, 1);
-        return nuevoInstructor;
+        const nuevaProgramacion = [...inst.programacion];
+        nuevaProgramacion[indexMes].rangos.splice(indexRango, 1);
+        return { ...inst, programacion: nuevaProgramacion };
       }
       return inst;
     });
@@ -117,17 +104,13 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // Eliminar un mes completo
   const eliminarMes = (id, indexMes) => {
     const nuevosInstructores = instructores.map(inst => {
       if (inst.id === id) {
-        const nuevoInstructor = { ...inst };
-        nuevoInstructor.programacion.splice(indexMes, 1);
-        // Reordenar números de mes
-        nuevoInstructor.programacion.forEach((mes, idx) => {
-          mes.mes = idx + 1;
-        });
-        return nuevoInstructor;
+        const nuevaProgramacion = [...inst.programacion];
+        nuevaProgramacion.splice(indexMes, 1);
+        nuevaProgramacion.forEach((mes, idx) => { mes.mes = idx + 1; });
+        return { ...inst, programacion: nuevaProgramacion };
       }
       return inst;
     });
@@ -135,60 +118,32 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
     setFormData({ ...formData, instructores: nuevosInstructores });
   };
 
-  // ===== FUNCIÓN DE VALIDACIÓN =====
   const validarProgramacion = () => {
     const errores = [];
-
     instructores.forEach((instructor, idx) => {
       if (instructor.programacion.length === 0) {
         errores.push(`Instructor ${idx + 1}: Debe agregar al menos un mes de programación`);
       }
-
       instructor.programacion.forEach((mes, mIdx) => {
         if (mes.rangos.length === 0) {
           errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Debe agregar al menos un rango de fechas`);
         }
-
         mes.rangos.forEach((rango, rIdx) => {
-          if (!rango.desde) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}, Rango ${rIdx + 1}: La fecha "desde" es obligatoria`);
+          if (!rango.desde) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}, Rango ${rIdx + 1}: Fecha "desde" obligatoria`);
+          if (!rango.hasta) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}, Rango ${rIdx + 1}: Fecha "hasta" obligatoria`);
+          if (rango.desde && rango.hasta && new Date(rango.hasta) <= new Date(rango.desde)) {
+            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Fecha "hasta" debe ser posterior a "desde"`);
           }
-          if (!rango.hasta) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}, Rango ${rIdx + 1}: La fecha "hasta" es obligatoria`);
-          }
-
-          if (rango.desde && rango.hasta) {
-            const fechaDesde = new Date(rango.desde);
-            const fechaHasta = new Date(rango.hasta);
-            if (fechaHasta <= fechaDesde) {
-              errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La fecha "hasta" debe ser posterior a la fecha "desde"`);
-            }
-          }
-
-          // Validar horarios
-          const [hInicio, mInicio] = rango.hora_inicio.split(':').map(Number);
-          const [hFin, mFin] = rango.hora_fin.split(':').map(Number);
-          const minutosInicio = hInicio * 60 + mInicio;
-          const minutosFin = hFin * 60 + mFin;
-
-          if (minutosFin <= minutosInicio) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La hora fin debe ser mayor a la hora inicio`);
-          }
-          if (minutosFin - minutosInicio < 60) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La duración mínima es 1 hora`);
-          }
-          if (minutosFin - minutosInicio > 600) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La duración máxima es 10 horas`);
-          }
-          if (minutosInicio < 6 * 60) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La hora inicio no puede ser antes de las 06:00`);
-          }
-          if (minutosFin > 22 * 60) {
-            errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: La hora fin no puede ser después de las 22:00`);
-          }
+          const [hI, mI] = rango.hora_inicio.split(':').map(Number);
+          const [hF, mF] = rango.hora_fin.split(':').map(Number);
+          const minutosInicio = hI * 60 + mI;
+          const minutosFin = hF * 60 + mF;
+          if (minutosFin <= minutosInicio) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Hora fin debe ser mayor a hora inicio`);
+          if (minutosFin - minutosInicio < 60) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Duración mínima 1 hora`);
+          if (minutosFin - minutosInicio > 600) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Duración máxima 10 horas`);
+          if (minutosInicio < 6 * 60) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Hora inicio no puede ser antes de 06:00`);
+          if (minutosFin > 22 * 60) errores.push(`Instructor ${idx + 1}, Mes ${mes.mes}: Hora fin no puede ser después de 22:00`);
         });
-
-        // Validar que los rangos no se solapen
         if (mes.rangos.length > 1) {
           const rangosOrdenados = [...mes.rangos].sort((a, b) => new Date(a.desde) - new Date(b.desde));
           for (let i = 0; i < rangosOrdenados.length - 1; i++) {
@@ -199,213 +154,457 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
         }
       });
     });
-
     return errores;
   };
 
   return (
-    <div style={styles.container}>
-      <h3 style={styles.title}>👨‍🏫 Instructores Campesena</h3>
-      <p style={styles.subtitle}>Agregue los instructores necesarios y su programación</p>
-      
+    <div className="campesena-container">
+      <style>{`
+        .campesena-container {
+          margin-top: 28px;
+          font-family: 'Segoe UI', 'Roboto', sans-serif;
+        }
+        .campesena-header {
+          margin-bottom: 24px;
+          border-bottom: 2px solid #eef2f6;
+          padding-bottom: 12px;
+        }
+        .campesena-title {
+          font-size: 22px;
+          font-weight: 700;
+          color: #00643C;
+          margin: 0 0 4px;
+        }
+        .campesena-sub {
+          font-size: 14px;
+          color: #5a6e7c;
+          margin: 0;
+        }
+        .instructor-card {
+          background: #fefefe;
+          border-radius: 28px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+          margin-bottom: 32px;
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+          transition: all 0.2s;
+        }
+        .instructor-card:hover {
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        }
+        .instructor-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 18px 24px;
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .instructor-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0F2B46;
+          margin: 0;
+        }
+        .btn-remove-instructor {
+          background: #fef2f2;
+          border: none;
+          color: #dc2626;
+          font-size: 13px;
+          font-weight: 600;
+          padding: 6px 16px;
+          border-radius: 40px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-remove-instructor:hover {
+          background: #fee2e2;
+          transform: translateY(-1px);
+        }
+        .instructor-body {
+          padding: 24px;
+        }
+        .form-row {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+        .form-group {
+          flex: 1;
+          min-width: 180px;
+        }
+        .form-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: #2d3748;
+          margin-bottom: 6px;
+        }
+        .form-input, .form-select {
+          width: 100%;
+          padding: 10px 14px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 20px;
+          font-size: 14px;
+          font-family: inherit;
+          background: white;
+          transition: all 0.2s;
+          outline: none;
+        }
+        .form-input:focus, .form-select:focus {
+          border-color: #00643C;
+          box-shadow: 0 0 0 3px rgba(0, 100, 60, 0.2);
+        }
+        .mes-section {
+          margin-top: 28px;
+        }
+        .mes-title-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        .mes-badge {
+          background: #FFD966;
+          color: #0F2B46;
+          padding: 4px 14px;
+          border-radius: 40px;
+          font-size: 14px;
+          font-weight: 700;
+        }
+        .btn-remove-mes {
+          background: none;
+          border: none;
+          color: #e53e3e;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 4px 12px;
+          border-radius: 40px;
+        }
+        .btn-remove-mes:hover {
+          background: #fff0f0;
+        }
+        .rango-card {
+          background: #fafcff;
+          border-radius: 24px;
+          padding: 16px 20px;
+          margin-bottom: 16px;
+          border: 1px solid #e2edf7;
+          transition: all 0.2s;
+        }
+        .rango-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 14px;
+        }
+        .rango-label {
+          font-weight: 700;
+          color: #00643C;
+          font-size: 14px;
+        }
+        .btn-remove-rango {
+          background: none;
+          border: none;
+          color: #dc2626;
+          font-size: 18px;
+          cursor: pointer;
+          width: 28px;
+          height: 28px;
+          border-radius: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .btn-remove-rango:hover {
+          background: #fee2e2;
+        }
+        .btn-add-rango {
+          background: #e8f5e9;
+          border: none;
+          color: #2e7d32;
+          font-weight: 600;
+          padding: 8px 20px;
+          border-radius: 40px;
+          cursor: pointer;
+          font-size: 13px;
+          margin-top: 8px;
+          transition: all 0.2s;
+        }
+        .btn-add-rango:hover {
+          background: #c8e6c9;
+        }
+        .btn-add-mes {
+          background: #e6f0ff;
+          border: none;
+          color: #1e40af;
+          font-weight: 600;
+          padding: 10px 20px;
+          border-radius: 40px;
+          cursor: pointer;
+          font-size: 14px;
+          margin-top: 16px;
+          width: 100%;
+          transition: all 0.2s;
+        }
+        .btn-add-mes:hover {
+          background: #dbeafe;
+        }
+        .btn-add-instructor {
+          width: 100%;
+          background: #00643C;
+          color: white;
+          border: none;
+          border-radius: 40px;
+          padding: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          margin: 16px 0 20px;
+          transition: all 0.2s;
+        }
+        .btn-add-instructor:hover {
+          background: #004d2e;
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(0, 100, 60, 0.3);
+        }
+        .validate-section {
+          text-align: center;
+          margin-top: 20px;
+        }
+        .btn-validate {
+          background: #FFD966;
+          color: #0F2B46;
+          border: none;
+          border-radius: 40px;
+          padding: 12px 32px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-validate:hover {
+          background: #f0bc1a;
+          transform: translateY(-1px);
+        }
+        @media (max-width: 640px) {
+          .form-row {
+            flex-direction: column;
+            gap: 16px;
+          }
+          .instructor-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+          }
+        }
+      `}</style>
+
+      <div className="campesena-header">
+        <h3 className="campesena-title">👨‍🏫 Instructores Campesena</h3>
+        <p className="campesena-sub">Agregue los instructores necesarios y su programación detallada</p>
+      </div>
+
       {instructores.map((instructor, idx) => (
-        <div key={instructor.id} style={styles.instructorBox}>
-          <div style={styles.instructorHeader}>
-            <h4 style={styles.instructorTitle}>Instructor {idx + 1}</h4>
+        <div key={instructor.id} className="instructor-card">
+          <div className="instructor-header">
+            <h4 className="instructor-title">Instructor {idx + 1}</h4>
             {instructores.length > 1 && (
               <button
                 type="button"
                 onClick={() => eliminarInstructor(instructor.id)}
-                style={styles.removeInstructorButton}
+                className="btn-remove-instructor"
               >
                 ✕ Eliminar instructor
               </button>
             )}
           </div>
 
-          {/* ===== SELECCIÓN DE TIPO ===== */}
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Tipo de Instructor:</label>
-            <select
-              value={instructor.tipo}
-              onChange={(e) => actualizarCampo(instructor.id, 'tipo', e.target.value)}
-              style={styles.select}
-            >
-              <option value="Técnico">🔧 Técnico</option>
-              <option value="Empresarial">💼 Empresarial</option>
-              <option value="Popular">👥 Popular</option>
-            </select>
-          </div>
-
-          {/* ===== DATOS PERSONALES ===== */}
-          <div style={styles.row}>
-            <div style={styles.half}>
-              <label style={styles.label}>Tipo ID:</label>
+          <div className="instructor-body">
+            {/* Tipo de instructor */}
+            <div className="form-group">
+              <label className="form-label">Tipo de Instructor</label>
               <select
-                value={instructor.tipo_identificacion}
-                onChange={(e) => actualizarCampo(instructor.id, 'tipo_identificacion', e.target.value)}
-                style={styles.select}
+                className="form-select"
+                value={instructor.tipo}
+                onChange={(e) => actualizarCampo(instructor.id, 'tipo', e.target.value)}
               >
-                <option value="CC">CC</option>
-                <option value="CE">CE</option>
-                <option value="TI">TI</option>
-                <option value="PAP">PAP</option>
-                <option value="NIT">NIT</option>
+                <option value="Técnico">🔧 Técnico</option>
+                <option value="Empresarial">💼 Empresarial</option>
+                <option value="Popular">👥 Popular</option>
               </select>
             </div>
-            <div style={styles.half}>
-              <label style={styles.label}>Identificación:</label>
+
+            {/* Datos personales */}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Tipo ID</label>
+                <select
+                  className="form-select"
+                  value={instructor.tipo_identificacion}
+                  onChange={(e) => actualizarCampo(instructor.id, 'tipo_identificacion', e.target.value)}
+                >
+                  <option value="CC">CC</option>
+                  <option value="CE">CE</option>
+                  <option value="TI">TI</option>
+                  <option value="PAP">PAP</option>
+                  <option value="NIT">NIT</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Identificación</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={instructor.identificacion}
+                  onChange={(e) => actualizarCampo(instructor.id, 'identificacion', e.target.value)}
+                  placeholder="12345678"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Nombre completo</label>
               <input
                 type="text"
-                value={instructor.identificacion}
-                onChange={(e) => actualizarCampo(instructor.id, 'identificacion', e.target.value)}
-                style={styles.input}
-                placeholder="12345678"
+                className="form-input"
+                value={instructor.nombre}
+                onChange={(e) => actualizarCampo(instructor.id, 'nombre', e.target.value)}
+                placeholder="Nombre completo"
               />
             </div>
-          </div>
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Nombre completo:</label>
-            <input
-              type="text"
-              value={instructor.nombre}
-              onChange={(e) => actualizarCampo(instructor.id, 'nombre', e.target.value)}
-              style={styles.input}
-              placeholder="Nombre completo"
-            />
-          </div>
-
-          <div style={styles.row}>
-            <div style={styles.half}>
-              <label style={styles.label}>Correo:</label>
-              <input
-                type="email"
-                value={instructor.correo}
-                onChange={(e) => actualizarCampo(instructor.id, 'correo', e.target.value)}
-                style={styles.input}
-                placeholder="correo@ejemplo.com"
-              />
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Correo</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={instructor.correo}
+                  onChange={(e) => actualizarCampo(instructor.id, 'correo', e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Celular</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={instructor.celular}
+                  onChange={(e) => actualizarCampo(instructor.id, 'celular', e.target.value)}
+                  placeholder="3001234567"
+                />
+              </div>
             </div>
-            <div style={styles.half}>
-              <label style={styles.label}>Celular:</label>
-              <input
-                type="tel"
-                value={instructor.celular}
-                onChange={(e) => actualizarCampo(instructor.id, 'celular', e.target.value)}
-                style={styles.input}
-                placeholder="3001234567"
-              />
-            </div>
-          </div>
 
-          {/* ===== PROGRAMACIÓN POR MESES ===== */}
-          <h5 style={styles.programacionTitle}>📅 Programación por Meses</h5>
-          
-          {instructor.programacion.map((mes, mIdx) => (
-            <div key={mIdx} style={styles.mesBox}>
-              <div style={styles.mesHeader}>
-                <h6 style={styles.mesTitle}>Mes {mes.mes}</h6>
-                <button
-                  type="button"
-                  onClick={() => eliminarMes(instructor.id, mIdx)}
-                  style={styles.removeMesButton}
-                  title="Eliminar este mes"
-                >
-                  ✕ Eliminar mes
-                </button>
+            {/* Programación por meses */}
+            <div className="mes-section">
+              <div className="mes-title-row">
+                <span className="mes-badge">📅 Programación por meses</span>
               </div>
 
-              {/* RANGOS DE FECHAS */}
-              {mes.rangos.map((rango, rIdx) => (
-                <div key={rIdx} style={styles.rangoBox}>
-                  <div style={styles.rangoHeader}>
-                    <span style={styles.rangoTitle}>Rango {rIdx + 1}</span>
+              {instructor.programacion.map((mes, mIdx) => (
+                <div key={mIdx} style={{ marginBottom: '24px' }}>
+                  <div className="mes-title-row">
+                    <span className="mes-badge">Mes {mes.mes}</span>
                     <button
                       type="button"
-                      onClick={() => eliminarRango(instructor.id, mIdx, rIdx)}
-                      style={styles.removeRangoButton}
-                      title="Eliminar este rango"
+                      onClick={() => eliminarMes(instructor.id, mIdx)}
+                      className="btn-remove-mes"
                     >
-                      ✕
+                      ✕ Eliminar mes
                     </button>
                   </div>
-                  
-                  <div style={styles.row}>
-                    <div style={styles.half}>
-                      <label style={styles.label}>Desde:</label>
-                      <input
-                        type="date"
-                        value={rango.desde}
-                        onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'desde', e.target.value)}
-                        style={styles.input}
-                      />
-                    </div>
-                    <div style={styles.half}>
-                      <label style={styles.label}>Hasta:</label>
-                      <input
-                        type="date"
-                        value={rango.hasta}
-                        onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hasta', e.target.value)}
-                        style={styles.input}
-                      />
-                    </div>
-                  </div>
 
-                  <div style={styles.row}>
-                    <div style={styles.half}>
-                      <label style={styles.label}>Hora inicio:</label>
-                      <input
-                        type="time"
-                        value={rango.hora_inicio}
-                        onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hora_inicio', e.target.value)}
-                        style={styles.input}
-                      />
+                  {mes.rangos.map((rango, rIdx) => (
+                    <div key={rIdx} className="rango-card">
+                      <div className="rango-header">
+                        <span className="rango-label">Rango {rIdx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => eliminarRango(instructor.id, mIdx, rIdx)}
+                          className="btn-remove-rango"
+                          title="Eliminar rango"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Desde</label>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={rango.desde}
+                            onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'desde', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Hasta</label>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={rango.hasta}
+                            onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hasta', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label className="form-label">Hora inicio</label>
+                          <input
+                            type="time"
+                            className="form-input"
+                            value={rango.hora_inicio}
+                            onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hora_inicio', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Hora fin</label>
+                          <input
+                            type="time"
+                            className="form-input"
+                            value={rango.hora_fin}
+                            onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hora_fin', e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div style={styles.half}>
-                      <label style={styles.label}>Hora fin:</label>
-                      <input
-                        type="time"
-                        value={rango.hora_fin}
-                        onChange={(e) => actualizarRango(instructor.id, mIdx, rIdx, 'hora_fin', e.target.value)}
-                        style={styles.input}
-                      />
-                    </div>
-                  </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => agregarRango(instructor.id, mIdx)}
+                    className="btn-add-rango"
+                  >
+                    + Agregar rango de fechas
+                  </button>
                 </div>
               ))}
 
               <button
                 type="button"
-                onClick={() => agregarRango(instructor.id, mIdx)}
-                style={styles.addRangoButton}
+                onClick={() => agregarMes(instructor.id)}
+                className="btn-add-mes"
               >
-                + Agregar rango de fechas
+                + Agregar nuevo mes
               </button>
             </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={() => agregarMes(instructor.id)}
-            style={styles.addMesButton}
-          >
-            + Agregar nuevo mes
-          </button>
+          </div>
         </div>
       ))}
 
-      {/* Botón para agregar nuevo instructor */}
       <button
         type="button"
         onClick={agregarInstructor}
-        style={styles.addInstructorButton}
+        className="btn-add-instructor"
       >
         + Agregar nuevo instructor
       </button>
 
-      {/* Botón para validar */}
-      <div style={styles.validationBox}>
+      <div className="validate-section">
         <button
           type="button"
           onClick={() => {
@@ -416,210 +615,13 @@ const FormularioCampesenaCompleto = ({ formData, setFormData }) => {
               alert('✅ Validación exitosa');
             }
           }}
-          style={styles.validateButton}
+          className="btn-validate"
         >
           Validar programación
         </button>
       </div>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    width: '100%',
-    marginTop: '20px'
-  },
-  title: {
-    color: '#2c3e50',
-    marginBottom: '5px',
-    fontSize: '20px'
-  },
-  subtitle: {
-    color: '#7f8c8d',
-    marginBottom: '20px',
-    fontSize: '14px'
-  },
-  instructorBox: {
-    backgroundColor: '#f0f7ff',
-    padding: '20px',
-    borderRadius: '8px',
-    marginBottom: '25px',
-    border: '2px solid #3498db'
-  },
-  instructorHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '15px'
-  },
-  instructorTitle: {
-    color: '#3498db',
-    margin: 0,
-    fontSize: '18px'
-  },
-  removeInstructorButton: {
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    padding: '5px 10px',
-    fontSize: '12px',
-    cursor: 'pointer'
-  },
-  programacionTitle: {
-    color: '#2c3e50',
-    margin: '20px 0 10px 0',
-    fontSize: '16px',
-    borderBottom: '1px solid #3498db',
-    paddingBottom: '5px'
-  },
-  mesBox: {
-    backgroundColor: '#ffffff',
-    padding: '15px',
-    borderRadius: '6px',
-    marginBottom: '15px',
-    border: '1px solid #3498db'
-  },
-  mesHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '10px'
-  },
-  mesTitle: {
-    color: '#27ae60',
-    margin: 0,
-    fontSize: '15px',
-    fontWeight: 'bold'
-  },
-  removeMesButton: {
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    padding: '4px 8px',
-    fontSize: '12px',
-    cursor: 'pointer'
-  },
-  rangoBox: {
-    backgroundColor: '#f9f9f9',
-    padding: '12px',
-    borderRadius: '4px',
-    marginBottom: '10px',
-    border: '1px solid #e0e0e0'
-  },
-  rangoHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px'
-  },
-  rangoTitle: {
-    fontSize: '13px',
-    fontWeight: 'bold',
-    color: '#34495e'
-  },
-  removeRangoButton: {
-    backgroundColor: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    width: '24px',
-    height: '24px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px',
-    marginBottom: '15px'
-  },
-  row: {
-    display: 'flex',
-    gap: '10px',
-    marginBottom: '10px',
-    alignItems: 'flex-end'
-  },
-  half: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  label: {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    color: '#34495e'
-  },
-  input: {
-    padding: '8px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '13px'
-  },
-  select: {
-    padding: '8px',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '13px',
-    backgroundColor: 'white'
-  },
-  addRangoButton: {
-    width: '100%',
-    padding: '8px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 'bold',
-    marginTop: '5px'
-  },
-  addMesButton: {
-    width: '100%',
-    padding: '10px',
-    backgroundColor: '#27ae60',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    marginTop: '10px'
-  },
-  addInstructorButton: {
-    width: '100%',
-    padding: '15px',
-    backgroundColor: '#3498db',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginTop: '10px',
-    marginBottom: '20px'
-  },
-  validationBox: {
-    marginTop: '20px',
-    textAlign: 'center'
-  },
-  validateButton: {
-    padding: '12px 24px',
-    backgroundColor: '#27ae60',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  }
 };
 
 export default FormularioCampesenaCompleto;
