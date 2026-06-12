@@ -6,6 +6,7 @@ const FormularioInscripcion = () => {
   const { codigo } = useParams();
   const [loading, setLoading] = useState(false);
   const [loadingDatos, setLoadingDatos] = useState(true);
+  const [readingPdf, setReadingPdf] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [tiposDocumento, setTiposDocumento] = useState([]);
@@ -50,8 +51,53 @@ const FormularioInscripcion = () => {
   const handleChange = e =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleFile = e =>
-    setFormData({ ...formData, pdf_cedula: e.target.files[0] });
+  const handleFile = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setFormData(prev => ({ ...prev, pdf_cedula: file }));
+    setReadingPdf(true);
+    setError('');
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+        reader.readAsDataURL(file);
+      });
+
+      // Llamar al backend con timeout extendido (Anthropic puede tardar ~15s)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos
+      const rawResponse = await fetch('http://localhost:4000/api/cedula/leer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf_base64: base64 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!rawResponse.ok) throw new Error(`Error del servidor: ${rawResponse.status}`);
+      const extracted = await rawResponse.json();
+
+      // Normalizar sigla: quitar puntos y espacios para comparar ("C.C" => "CC", "T.I" => "TI")
+      const normalizar = str => (str || '').toUpperCase().replace(/[.\s]/g, '');
+      const tipoMatch = tiposDocumento.find(
+        t => normalizar(t.nombre) === normalizar(extracted.tipo_documento)
+      );
+
+      setFormData(prev => ({
+        ...prev,
+        nombres: extracted.nombres || prev.nombres,
+        apellidos: extracted.apellidos || prev.apellidos,
+        numero_documento: extracted.numero_documento || prev.numero_documento,
+        tipo_documento: tipoMatch?._id || prev.tipo_documento,
+      }));
+    } catch (err) {
+      console.error('Error leyendo cédula:', err.message);
+      setError('No se pudo leer la cédula automáticamente. Puedes completar los campos manualmente.');
+    } finally {
+      setReadingPdf(false);
+    }
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -319,6 +365,28 @@ const FormularioInscripcion = () => {
             background: #9bb7a8;
             cursor: not-allowed;
           }
+          .reading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #00643C;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 8px;
+          }
+          .reading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #00643C;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+          }
+          .field-autofilled {
+            border-color: #00643C !important;
+            background: #f0faf5 !important;
+          }
           @media (max-width: 640px) {
             .inscripcion-container {
               padding: 20px 16px;
@@ -388,7 +456,7 @@ const FormularioInscripcion = () => {
                       name="nombres"
                       value={formData.nombres}
                       onChange={handleChange}
-                      className="input"
+                      className={`input${formData.nombres && !readingPdf ? ' field-autofilled' : ''}`}
                       placeholder="Juan Carlos"
                       required
                     />
@@ -400,7 +468,7 @@ const FormularioInscripcion = () => {
                       name="apellidos"
                       value={formData.apellidos}
                       onChange={handleChange}
-                      className="input"
+                      className={`input${formData.apellidos && !readingPdf ? ' field-autofilled' : ''}`}
                       placeholder="Pérez González"
                       required
                     />
@@ -430,7 +498,7 @@ const FormularioInscripcion = () => {
                       name="numero_documento"
                       value={formData.numero_documento}
                       onChange={handleChange}
-                      className="input"
+                      className={`input${formData.numero_documento && !readingPdf ? ' field-autofilled' : ''}`}
                       placeholder="123456789"
                       required
                     />
@@ -495,10 +563,16 @@ const FormularioInscripcion = () => {
                     <label htmlFor="pdf-cedula" className="file-label">
                       {formData.pdf_cedula ? formData.pdf_cedula.name : 'Seleccionar archivo PDF…'}
                     </label>
-                    {formData.pdf_cedula && (
+                    {formData.pdf_cedula && !readingPdf && (
                       <span className="file-ok">✓ Archivo seleccionado</span>
                     )}
                   </div>
+                  {readingPdf && (
+                    <div className="reading-indicator">
+                      <div className="reading-spinner" />
+                      Leyendo cédula y completando campos…
+                    </div>
+                  )}
                 </div>
 
                 <button

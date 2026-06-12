@@ -11,6 +11,7 @@ const usuarioRoutes = require('./routes/usuarioRoutes');
 const solicitudRoutes = require('./routes/solicitudRoutes');
 
 const ofertasFuncionarioRoutes = require('./routes/ofertasFuncionarioRoutes');
+const cedulaRoutes = require('./routes/CedulaRoute');
 
 
 const app = express();
@@ -35,8 +36,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Rutas
 app.use('/api/auth', authRoutes);
@@ -49,6 +50,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 
 app.use('/api/ofertas-funcionario', ofertasFuncionarioRoutes);
+app.use('/api/cedula', cedulaRoutes);
 
 
 // Ruta de prueba
