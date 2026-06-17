@@ -468,6 +468,7 @@ const getOfertaPorLink = async (req, res) => {
 // FUNCIONES PARA FUNCIONARIOS
 // =============================================
 
+// Obtener ofertas en LISTA_ESPERA o FICHA_PROCESO según el tipo de funcionario
 const getOfertasAprobadasPorTipo = async (req, res) => {
   try {
     const { tipo } = req.params; // 'campesena' o 'regular'
@@ -485,19 +486,22 @@ const getOfertasAprobadasPorTipo = async (req, res) => {
       });
     }
 
-    // Buscar el estado "lista_espera" (cambiado de "aprobada")
-    const estadoListaEspera = await EstadoOferta.findOne({ codigo: 'lista_espera' });
-    
-    if (!estadoListaEspera) {
+    // Buscar los estados "lista_espera" y "ficha_proceso"
+    const [estadoListaEspera, estadoFichaProceso] = await Promise.all([
+      EstadoOferta.findOne({ codigo: 'lista_espera' }),
+      EstadoOferta.findOne({ codigo: 'ficha_proceso' })
+    ]);
+
+    if (!estadoListaEspera || !estadoFichaProceso) {
       return res.status(404).json({
         success: false,
-        message: 'Estado "lista_espera" no encontrado. Ejecuta el script de inserción de estados.'
+        message: 'Estados necesarios no encontrados. Ejecuta el script de inserción de estados.'
       });
     }
 
-    // Buscar ofertas en lista_espera del tipo correspondiente
+    // Buscar ofertas en lista_espera o ficha_proceso del tipo correspondiente
     const ofertas = await CreacionOferta.find({
-      estado: estadoListaEspera._id,
+      estado: { $in: [estadoListaEspera._id, estadoFichaProceso._id] },
       es_campesena: tipo === 'campesena'
     })
       .populate('programa_formacion')
