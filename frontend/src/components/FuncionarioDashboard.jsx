@@ -11,6 +11,7 @@ const FuncionarioDashboard = () => {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [descargandoExcel, setDescargandoExcel] = useState(false);
   const [descargandoInscritos, setDescargandoInscritos] = useState(false);
+  const [procesandoOfertaId, setProcesandoOfertaId] = useState(null); // NUEVO
   const [formData, setFormData] = useState({
     codigo_ficha: '',
     fecha_creacion: new Date().toISOString().split('T')[0],
@@ -41,23 +42,18 @@ const FuncionarioDashboard = () => {
     try {
       setDescargandoExcel(true);
       setError('');
-      
       const response = await api.get(`/ofertas/${ofertaId}/exportar-excel`, {
         responseType: 'blob'
       });
-      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      
       const oferta = ofertas.find(o => o._id === ofertaId);
       const tipo = oferta?.es_campesena ? 'campesena' : 'regular';
       link.setAttribute('download', `oferta_${tipo}_${oferta?.programa_formacion?.codigo || ofertaId}.xlsx`);
-      
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
       setSuccess('✅ Excel descargado correctamente');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
@@ -90,6 +86,38 @@ const FuncionarioDashboard = () => {
       setError('Error al exportar los datos de inscritos');
     } finally {
       setDescargandoInscritos(false);
+    }
+  };
+
+  // ===== NUEVA FUNCIÓN: Iniciar revisión =====
+  const iniciarRevision = async (ofertaId) => {
+    if (!window.confirm('¿Iniciar revisión? La oferta pasará a estado "Ficha en proceso de creación".')) return;
+    try {
+      setProcesandoOfertaId(ofertaId);
+      await api.put(`/ofertas/${ofertaId}/iniciar-revision`);
+      setSuccess('✅ Revisión iniciada. Ahora puedes crear la ficha.');
+      cargarOfertasAprobadas();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Error al iniciar revisión');
+    } finally {
+      setProcesandoOfertaId(null);
+    }
+  };
+
+  // ===== NUEVA FUNCIÓN: Finalizar matrícula =====
+  const finalizarMatricula = async (ofertaId) => {
+    const mensaje = prompt('Mensaje para el instructor (opcional):', 'Los aspirantes han sido matriculados exitosamente.');
+    try {
+      setProcesandoOfertaId(ofertaId);
+      await api.put(`/ofertas/${ofertaId}/finalizar-matricula`, { mensaje_instructor: mensaje || '' });
+      setSuccess('✅ Matrícula finalizada. El instructor ha sido notificado.');
+      cargarOfertasAprobadas();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      setError(error.response?.data?.message || 'Error al finalizar matrícula');
+    } finally {
+      setProcesandoOfertaId(null);
     }
   };
 
@@ -212,7 +240,6 @@ const FuncionarioDashboard = () => {
           max-width: 1600px;
           margin: 0 auto;
         }
-        /* Sidebar */
         .sidebar {
           width: 280px;
           background: white;
@@ -282,7 +309,6 @@ const FuncionarioDashboard = () => {
           color: #00643C;
           margin-top: 6px;
         }
-        /* Content */
         .content {
           flex: 1;
           background: white;
@@ -458,7 +484,6 @@ const FuncionarioDashboard = () => {
       `}</style>
 
       <div className="dashboard-container">
-        {/* Header */}
         <div className="dashboard-header">
           <div className="header-left">
             <img src="/logosena.png" alt="SENA" className="logo-sena" />
@@ -473,9 +498,7 @@ const FuncionarioDashboard = () => {
           </div>
         </div>
 
-        {/* Main */}
         <div className="dashboard-main">
-          {/* Sidebar */}
           <div className="sidebar">
             <h3 className="sidebar-title">Menú Funcionario</h3>
             <button
@@ -498,7 +521,6 @@ const FuncionarioDashboard = () => {
             </div>
           </div>
 
-          {/* Content */}
           <div className="content">
             {error && <div className="error-alert">❌ {error}</div>}
             {success && <div className="success-alert">✅ {success}</div>}
@@ -527,7 +549,18 @@ const FuncionarioDashboard = () => {
                           <p><strong>Cupos:</strong> {oferta.cupos_disponibles}/{oferta.cupo_maximo}</p>
                         </div>
                         <div className="card-footer">
-                          {!oferta.ficha_sofia ? (
+                          {oferta.estado?.codigo === 'lista_espera' && (
+                            <button
+                              onClick={() => iniciarRevision(oferta._id)}
+                              disabled={procesandoOfertaId === oferta._id}
+                              className="btn-excel"
+                              style={{ backgroundColor: '#3182CE' }}
+                            >
+                              {procesandoOfertaId === oferta._id ? 'Procesando...' : '📝 Iniciar revisión'}
+                            </button>
+                          )}
+
+                          {oferta.estado?.codigo === 'ficha_proceso' && (
                             <>
                               <button
                                 onClick={() => descargarExcelCompleto(oferta._id)}
@@ -544,18 +577,28 @@ const FuncionarioDashboard = () => {
                               >
                                 {descargandoInscritos ? '📊 Exportando...' : '📊 Exportar Inscritos'}
                               </button>
-                              <p className="nota-pequena">* Descargue el Excel para crear la ficha en Sofía Plus</p>
-                            </>
-                          ) : (
-                            <div className="ficha-info">
-                              <span className="ficha-codigo">Ficha: {oferta.ficha_sofia.codigo}</span>
                               <button
-                                onClick={() => descargarExcelCompleto(oferta._id)}
-                                className="btn-secondary"
+                                onClick={() => finalizarMatricula(oferta._id)}
+                                disabled={procesandoOfertaId === oferta._id}
+                                className="btn-excel"
+                                style={{ backgroundColor: '#2E7D32', marginTop: '8px' }}
                               >
+                                {procesandoOfertaId === oferta._id ? 'Finalizando...' : '✅ Confirmar y notificar'}
+                              </button>
+                            </>
+                          )}
+
+                          {oferta.estado?.codigo === 'matriculados' && (
+                            <div className="ficha-info">
+                              <span className="ficha-codigo">Matrícula completada</span>
+                              <button onClick={() => descargarExcelCompleto(oferta._id)} className="btn-secondary">
                                 📥 Descargar Excel
                               </button>
                             </div>
+                          )}
+
+                          {!oferta.estado || (oferta.estado.codigo !== 'lista_espera' && oferta.estado.codigo !== 'ficha_proceso' && oferta.estado.codigo !== 'matriculados') && (
+                            <div className="nota-pequena">Esperando aprobación del coordinador</div>
                           )}
                         </div>
                       </div>

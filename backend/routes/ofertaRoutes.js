@@ -22,6 +22,8 @@ router.get('/:id', protect, ofertaController.obtenerOfertaPorId);
 router.put('/:id', protect, ofertaController.actualizarOferta);
 router.delete('/:id', protect, ofertaController.eliminarOferta);
 router.get('/:id/pdf', protect, ofertaController.descargarPDF);
+router.put('/:id/iniciar-revision', protect, ofertaController.iniciarRevisionOferta);
+router.put('/:id/finalizar-matricula', protect, ofertaController.finalizarMatricula);
 
 // ✅ NUEVA RUTA CORREGIDA - Usando ofertaController
 router.get('/:id/exportar-excel', protect, ofertaController.exportarExcelOfertaCompleta);

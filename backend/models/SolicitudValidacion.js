@@ -29,6 +29,12 @@ const solicitudValidacionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  archivos: {
+    ficha: String,
+    carta: String,
+    excel: String,
+    cedulas: String
+  },
   fecha_respuesta: Date,
   comentarios: String
 }, {

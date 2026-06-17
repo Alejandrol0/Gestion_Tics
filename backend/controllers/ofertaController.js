@@ -242,6 +242,79 @@ const obtenerOfertas = async (req, res) => {
   }
 };
 
+// Iniciar revisión de la oferta por parte del funcionario (cambia a ficha_proceso)
+const iniciarRevisionOferta = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const funcionario = req.usuario;
+
+    const oferta = await CreacionOferta.findById(id).populate('estado');
+    if (!oferta) return res.status(404).json({ success: false, message: 'Oferta no encontrada' });
+
+    // Verificar que la oferta esté en lista_espera
+    if (oferta.estado.codigo !== 'lista_espera') {
+      return res.status(400).json({ success: false, message: 'La oferta no está en lista de espera' });
+    }
+
+    const estadoProceso = await EstadoOferta.findOne({ codigo: 'ficha_proceso' });
+    if (!estadoProceso) throw new Error('Estado "ficha_proceso" no encontrado');
+
+    oferta.estado = estadoProceso._id;
+    oferta.historial_estados.push({
+      estado: estadoProceso._id,
+      comentario: `Funcionario ${funcionario.nombre} inició la revisión y creación de ficha.`,
+      cambiado_por: funcionario._id,
+      cambiado_por_modelo: 'Funcionario',
+      fecha: new Date()
+    });
+    await oferta.save();
+
+    res.json({ success: true, message: 'Revisión iniciada. Oferta en ficha en proceso de creación.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Finalizar matrícula: cambia a matriculados, notifica al instructor
+const finalizarMatricula = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const funcionario = req.usuario;
+    const { mensaje_instructor } = req.body; // opcional
+
+    const oferta = await CreacionOferta.findById(id)
+      .populate('estado')
+      .populate('creado_por', 'nombre apellido correoElectronico');
+    if (!oferta) return res.status(404).json({ success: false, message: 'Oferta no encontrada' });
+
+    if (oferta.estado.codigo !== 'ficha_proceso') {
+      return res.status(400).json({ success: false, message: 'La oferta no está en proceso de creación de ficha' });
+    }
+
+    const estadoMatriculados = await EstadoOferta.findOne({ codigo: 'matriculados' });
+    if (!estadoMatriculados) throw new Error('Estado "matriculados" no encontrado');
+
+    oferta.estado = estadoMatriculados._id;
+    oferta.historial_estados.push({
+      estado: estadoMatriculados._id,
+      comentario: mensaje_instructor || 'Matrícula completada por el funcionario. Aspirantes matriculados.',
+      cambiado_por: funcionario._id,
+      cambiado_por_modelo: 'Funcionario',
+      fecha: new Date()
+    });
+    await oferta.save();
+
+    // Aquí se puede enviar correo electrónico al instructor (opcional)
+    // Por ahora solo se guarda el mensaje en el historial. El instructor lo verá en MisOfertas.
+
+    res.json({ success: true, message: 'Matrícula finalizada. Oferta marcada como matriculados.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 const exportarExcelOfertaCompleta = async (req, res) => {
   try {
@@ -395,7 +468,6 @@ const getOfertaPorLink = async (req, res) => {
 // FUNCIONES PARA FUNCIONARIOS
 // =============================================
 
-// Obtener ofertas aprobadas según el tipo de funcionario
 const getOfertasAprobadasPorTipo = async (req, res) => {
   try {
     const { tipo } = req.params; // 'campesena' o 'regular'
@@ -413,19 +485,19 @@ const getOfertasAprobadasPorTipo = async (req, res) => {
       });
     }
 
-    // Buscar el estado "aprobada"
-    const estadoAprobada = await EstadoOferta.findOne({ codigo: 'aprobada' });
+    // Buscar el estado "lista_espera" (cambiado de "aprobada")
+    const estadoListaEspera = await EstadoOferta.findOne({ codigo: 'lista_espera' });
     
-    if (!estadoAprobada) {
+    if (!estadoListaEspera) {
       return res.status(404).json({
         success: false,
-        message: 'Estado "aprobada" no encontrado'
+        message: 'Estado "lista_espera" no encontrado. Ejecuta el script de inserción de estados.'
       });
     }
 
-    // Buscar ofertas aprobadas del tipo correspondiente
+    // Buscar ofertas en lista_espera del tipo correspondiente
     const ofertas = await CreacionOferta.find({
-      estado: estadoAprobada._id,
+      estado: estadoListaEspera._id,
       es_campesena: tipo === 'campesena'
     })
       .populate('programa_formacion')
@@ -442,20 +514,14 @@ const getOfertasAprobadasPorTipo = async (req, res) => {
         select: 'nombre nit'
       })
       .populate('coordinador_asignado', 'nombre')
+      .populate('estado')  // importante para el frontend
       .select('+carta_pdf +firma_digital_pdf')
       .sort({ createdAt: -1 });
-
-    // Agregar información de si ya tiene ficha registrada
-    const ofertasConFicha = ofertas.map(oferta => {
-      const ofertaObj = oferta.toObject();
-      ofertaObj.tieneFicha = !!oferta.ficha_sofia;
-      return ofertaObj;
-    });
 
     res.json({
       success: true,
       count: ofertas.length,
-      data: ofertasConFicha
+      data: ofertas
     });
 
   } catch (error) {
@@ -786,5 +852,7 @@ module.exports = {
   getOfertasAprobadasPorTipo,
   registrarFichaSofia,
   getHistorialFichas,
-  exportarExcelOfertaCompleta  
+  exportarExcelOfertaCompleta,
+  iniciarRevisionOferta, 
+  finalizarMatricula
 };

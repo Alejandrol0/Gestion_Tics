@@ -65,7 +65,8 @@ const SolicitarOferta = () => {
       fd.append('oferta_id', ofertaSeleccionada._id);
       fd.append('mensaje', mensaje);
       Object.entries(archivos).forEach(([k, v]) => { if (v) fd.append(k, v); });
-      await api.post('/solicitudes', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      // ✅ Ruta corregida
+      await api.post('/solicitudes/validacion', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setSuccess('Solicitud enviada correctamente. Tu coordinador recibirá una notificación.');
       setMensaje('');
       setArchivos({ ficha: null, carta: null, excel: null, cedulas: null });
@@ -392,7 +393,6 @@ const SolicitarOferta = () => {
           {error && <div className="error-box">{error}</div>}
           {success && <div className="success-box">{success}</div>}
 
-          {/* Tarjeta del coordinador */}
           {coordinador && (
             <div className="coord-card">
               <div className="coord-icon">
@@ -409,7 +409,6 @@ const SolicitarOferta = () => {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* Sección: Oferta */}
             <div className="section">
               <h3 className="section-title">Oferta a solicitar</h3>
               <div className="field">
@@ -454,7 +453,6 @@ const SolicitarOferta = () => {
               )}
             </div>
 
-            {/* Sección: Documentos */}
             <div className="section">
               <h3 className="section-title">Documentos adjuntos</h3>
               <div className="docs-list">
@@ -483,7 +481,6 @@ const SolicitarOferta = () => {
               </div>
             </div>
 
-            {/* Sección: Mensaje */}
             <div className="section">
               <h3 className="section-title">Mensaje al coordinador (opcional)</h3>
               <textarea
@@ -495,11 +492,7 @@ const SolicitarOferta = () => {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="submit-btn"
-            >
+            <button type="submit" disabled={loading} className="submit-btn">
               {loading ? 'Enviando solicitud…' : 'Enviar solicitud de validación'}
             </button>
           </form>
