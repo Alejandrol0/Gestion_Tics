@@ -4,6 +4,7 @@ const { generarFichaCaracterizacion } = require('../services/pdfGenerator');
 const fs = require('fs');
 const EstadoOferta = require('../models/EstadoOferta'); 
 const { exportarExcelOferta } = require('../services/exportarExcelOferta');
+const SolicitudValidacion = require('../models/SolicitudValidacion');
 
 
 const path = require('path');
@@ -511,7 +512,7 @@ const getOfertasAprobadasPorTipo = async (req, res) => {
       .populate('programa_especial')
       .populate({
         path: 'creado_por',
-        select: 'nombre apellido'
+        select: 'nombre apellido correoElectronico'  // ✅ CORREGIDO
       })
       .populate({
         path: 'empresa_solicitante',
@@ -842,6 +843,65 @@ const eliminarOferta = async (req, res) => {
   }
 };
 
+// =============================================
+// FUNCIONARIO: Obtener disponibilidad de archivos de la solicitud aprobada
+// =============================================
+const getArchivosSolicitud = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const oferta = await CreacionOferta.findById(id);
+    if (!oferta) {
+      return res.status(404).json({ success: false, message: 'Oferta no encontrada' });
+    }
+
+    const solicitud = await SolicitudValidacion.findOne({ oferta_id: id, estado: 'aprobada' });
+    if (!solicitud) {
+      return res.status(404).json({ success: false, message: 'No hay solicitud aprobada asociada a esta oferta' });
+    }
+
+    const archivos = {
+      ficha: solicitud.archivos?.ficha ? fs.existsSync(solicitud.archivos.ficha) : false,
+      carta: solicitud.archivos?.carta ? fs.existsSync(solicitud.archivos.carta) : false,
+      excel: solicitud.archivos?.excel ? fs.existsSync(solicitud.archivos.excel) : false,
+      cedulas: solicitud.archivos?.cedulas ? fs.existsSync(solicitud.archivos.cedulas) : false
+    };
+
+    res.json({ success: true, data: archivos });
+  } catch (error) {
+    console.error('Error en getArchivosSolicitud:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// =============================================
+// FUNCIONARIO: Descargar un archivo específico de la solicitud aprobada
+// =============================================
+const descargarArchivoSolicitud = async (req, res) => {
+  try {
+    const { id, tipo } = req.params; // tipo: ficha, carta, excel, cedulas
+    const oferta = await CreacionOferta.findById(id);
+    if (!oferta) {
+      return res.status(404).json({ success: false, message: 'Oferta no encontrada' });
+    }
+
+    const solicitud = await SolicitudValidacion.findOne({ oferta_id: id, estado: 'aprobada' });
+    if (!solicitud) {
+      return res.status(404).json({ success: false, message: 'Solicitud aprobada no encontrada' });
+    }
+
+    const ruta = solicitud.archivos?.[tipo];
+    if (!ruta || !fs.existsSync(ruta)) {
+      return res.status(404).json({ success: false, message: `Archivo ${tipo} no disponible` });
+    }
+
+    const extension = path.extname(ruta);
+    res.download(ruta, `archivo_${tipo}_${id}${extension}`);
+  } catch (error) {
+    console.error('Error en descargarArchivoSolicitud:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // ✅ EXPORTACIÓN ÚNICA - CON TODAS LAS FUNCIONES
 module.exports = {
   crearOferta,
@@ -858,5 +918,7 @@ module.exports = {
   getHistorialFichas,
   exportarExcelOfertaCompleta,
   iniciarRevisionOferta, 
-  finalizarMatricula
+  finalizarMatricula,
+  getArchivosSolicitud,    
+  descargarArchivoSolicitud
 };

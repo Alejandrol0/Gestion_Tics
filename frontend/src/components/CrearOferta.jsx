@@ -34,8 +34,8 @@ const CrearOferta = () => {
     horario: { hora_inicio: '08:00', hora_fin: '12:00', dias: [] },
     firma_digital_pdf: null,
     carta_pdf: null,
-    horas_programa: 0,        // ← guardamos las horas reales
-    duracion_meses: 4,        // ← valor en meses (se calculará a partir de horas_programa)
+    horas_programa: 0,
+    duracion_meses: 4,
     tipo_programa: ''
   });
 
@@ -118,22 +118,18 @@ const CrearOferta = () => {
     const programaSeleccionado = programas.find(p => p._id === formData.programa_formacion);
     if (!programaSeleccionado) return;
 
-    // 1. Guardar horas reales del programa
     const horas = programaSeleccionado.duracion_maxima || 0;
     setFormData(prev => ({ ...prev, horas_programa: horas }));
 
-    // 2. Convertir horas a meses (aproximación: 1 mes = 160 horas)
-    const horasPorMes = 160; // 4 semanas * 5 días * 8 horas
+    const horasPorMes = 160;
     let meses = Math.ceil(horas / horasPorMes);
-    meses = Math.min(12, Math.max(1, meses)); // entre 1 y 12
+    meses = Math.min(12, Math.max(1, meses));
     setFormData(prev => ({ ...prev, duracion_meses: meses }));
 
-    // 3. Autocompletar tipo de programa
     const tipoTexto = programaSeleccionado.tipo_programa?.trim();
     if (tipoTexto) {
       const tipoEncontrado = tiposPrograma.find(t => t.nombre && t.nombre.trim().toLowerCase() === tipoTexto.toLowerCase());
       if (tipoEncontrado) setFormData(prev => ({ ...prev, tipo_programa: tipoEncontrado._id }));
-      else console.warn(`No se encontró tipo "${tipoTexto}"`);
     }
   }, [formData.programa_formacion, programas, tiposPrograma]);
 
@@ -166,7 +162,6 @@ const CrearOferta = () => {
     return fechaActual.toISOString().split('T')[0];
   };
 
-  // Efecto que recalcula la fecha de fin (usa horas_programa, no duracion_meses)
   useEffect(() => {
     if (modo !== 'regular') return;
     const { inicio } = formData.fechas;
@@ -229,9 +224,18 @@ const CrearOferta = () => {
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     if (files && files[0]) {
-      if (files[0].type !== 'application/pdf') {
-        Swal.fire({ icon: 'error', title: 'Formato incorrecto', text: 'Solo se permiten archivos PDF', timer: 3000, showConfirmButton: false });
-        return;
+      // Validar tipo según campo
+      if (name === 'firma_digital_pdf') {
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
+        if (!allowedTypes.includes(files[0].type)) {
+          Swal.fire({ icon: 'error', title: 'Formato incorrecto', text: 'La firma digital debe ser PNG, JPG o PDF', timer: 3000, showConfirmButton: false });
+          return;
+        }
+      } else if (name === 'carta_pdf') {
+        if (files[0].type !== 'application/pdf') {
+          Swal.fire({ icon: 'error', title: 'Formato incorrecto', text: 'La carta debe ser un archivo PDF', timer: 3000, showConfirmButton: false });
+          return;
+        }
       }
       if (files[0].size > 5 * 1024 * 1024) {
         Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'El archivo no puede superar los 5MB', timer: 3000, showConfirmButton: false });
@@ -298,7 +302,6 @@ const CrearOferta = () => {
 
       const formDataToSend = new FormData();
 
-      // Campos simples
       formDataToSend.append('programa_formacion', formData.programa_formacion);
       formDataToSend.append('modalidad', formData.modalidad);
       formDataToSend.append('tipo_oferta', formData.tipo_oferta);
@@ -307,36 +310,26 @@ const CrearOferta = () => {
       formDataToSend.append('programa_especial', formData.programa_especial || '');
       formDataToSend.append('tipo_programa', tipoProgramaId);
       formDataToSend.append('modo', modo);
-      formDataToSend.append('duracion_meses', formData.duracion_meses); // ← ahora es meses (1-12)
+      formDataToSend.append('duracion_meses', formData.duracion_meses);
 
-      // Ambiente
       formDataToSend.append('ambiente_nombre', formData.ambiente.nombre);
-
-      // Fechas
       formDataToSend.append('fechas_inicio', formData.fechas.inicio);
       formDataToSend.append('fechas_fin', formData.fechas.fin);
-
-      // Ubicación
       formDataToSend.append('ubicacion_departamento', formData.ubicacion.departamento);
       formDataToSend.append('ubicacion_municipio', formData.ubicacion.municipio);
       formDataToSend.append('ubicacion_direccion', formData.ubicacion.direccion);
-
-      // Subsector y convenio
       formDataToSend.append('subsector_nombre', formData.subsector_economico.nombre);
       formDataToSend.append('convenio_nombre', formData.convenio.nombre);
 
-      // Horario (solo para regular)
       if (modo === 'regular') {
         formDataToSend.append('horario_hora_inicio', formData.horario.hora_inicio);
         formDataToSend.append('horario_hora_fin', formData.horario.hora_fin);
         formDataToSend.append('horario_dias', JSON.stringify(formData.horario.dias));
       }
 
-      // Archivos PDF
       if (formData.firma_digital_pdf) formDataToSend.append('firma_digital_pdf', formData.firma_digital_pdf);
       if (formData.carta_pdf) formDataToSend.append('carta_pdf', formData.carta_pdf);
 
-      // Instructores para campesena
       if (modo === 'campesena' && formData.instructores) {
         formDataToSend.append('instructores', JSON.stringify(formData.instructores));
       }
@@ -712,8 +705,8 @@ const CrearOferta = () => {
             <div className="section">
               <h3 className="section-title">Documentos Adjuntos</h3>
               <div className="form-group file-group">
-                <label className="label">Firma Digital (PDF):</label>
-                <input type="file" id="firma_digital_pdf" name="firma_digital_pdf" onChange={handleFileChange} style={{ display: 'none' }} accept=".pdf" />
+                <label className="label">Firma Digital (PNG/JPG o PDF):</label>
+                <input type="file" id="firma_digital_pdf" name="firma_digital_pdf" onChange={handleFileChange} style={{ display: 'none' }} accept=".png,.jpg,.jpeg,.pdf" />
                 <button type="button" onClick={() => document.getElementById('firma_digital_pdf').click()} className="btn-secondary">Seleccionar archivo</button>
                 {formData.firma_digital_pdf && (
                   <div className="file-info">
@@ -721,7 +714,7 @@ const CrearOferta = () => {
                     <button type="button" onClick={() => { document.getElementById('firma_digital_pdf').value = ''; setFormData(prev => ({ ...prev, firma_digital_pdf: null })); }} className="remove-file">✕</button>
                   </div>
                 )}
-                <div className="file-hint">Archivo PDF con la firma digital escaneada (máx. 5MB)</div>
+                <div className="file-hint">Archivo de imagen PNG/JPG o PDF con la firma digital (máx. 5MB)</div>
               </div>
               <div className="form-group file-group">
                 <label className="label">Carta (PDF):</label>

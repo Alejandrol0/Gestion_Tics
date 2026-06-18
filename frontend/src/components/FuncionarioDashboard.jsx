@@ -28,6 +28,12 @@ const FuncionarioDashboard = () => {
   const [mostrarModalDatosOferta, setMostrarModalDatosOferta] = useState(false);
   const [ofertaDatos, setOfertaDatos] = useState(null);
 
+  // Estados para el modal de documentos
+  const [mostrarModalDocumentos, setMostrarModalDocumentos] = useState(false);
+  const [documentosData, setDocumentosData] = useState({ ficha: false, carta: false, excel: false, cedulas: false });
+  const [cargandoDocumentos, setCargandoDocumentos] = useState(false);
+  const [ofertaDocumentos, setOfertaDocumentos] = useState(null);
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const tipoFuncionario = user.tipo_funcionario || 'regular';
 
@@ -69,6 +75,54 @@ const FuncionarioDashboard = () => {
   const handleVerDatosOferta = (oferta) => {
     setOfertaDatos(oferta);
     setMostrarModalDatosOferta(true);
+  };
+
+  // Función para ver documentos adjuntos (abre modal)
+  const handleVerDocumentos = async (ofertaId) => {
+    try {
+      setCargandoDocumentos(true);
+      const oferta = ofertas.find(o => o._id === ofertaId);
+      setOfertaDocumentos(oferta);
+      const response = await api.get(`/ofertas/${ofertaId}/archivos-solicitud`);
+      setDocumentosData(response.data.data);
+      setMostrarModalDocumentos(true);
+    } catch (error) {
+      console.error('Error cargando documentos:', error);
+      setError('No hay documentos disponibles para esta oferta o la solicitud aún no ha sido aprobada.');
+    } finally {
+      setCargandoDocumentos(false);
+    }
+  };
+
+  const descargarArchivoDocumento = async (ofertaId, tipo) => {
+    try {
+      const response = await api.get(`/ofertas/${ofertaId}/descargar-archivo/${tipo}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      // Extraer extensión del Content-Disposition o usar .pdf/.xlsx por defecto
+      const disposition = response.headers['content-disposition'];
+      let filename = `${tipo}_${ofertaId}`;
+      if (disposition) {
+        const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+      } else {
+        // Asumir extensión por tipo (ajustar según lo que suban)
+        if (tipo === 'excel') filename += '.xlsx';
+        else filename += '.pdf';
+      }
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setSuccess(`✅ ${tipo} descargado correctamente`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error descargando archivo:', error);
+      setError(`Error al descargar ${tipo}`);
+    }
   };
 
   // Función de descarga de Excel (se mantiene pero se usa en el modal como opción secundaria)
@@ -552,6 +606,24 @@ const FuncionarioDashboard = () => {
           transform: translateY(-1px);
           box-shadow: 0 6px 12px rgba(107, 114, 128, 0.3);
         }
+        .btn-documentos {
+          width: 100%;
+          background: #8B5CF6;
+          color: white;
+          border: none;
+          border-radius: 40px;
+          padding: 10px;
+          font-weight: 700;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-bottom: 8px;
+        }
+        .btn-documentos:hover:not(:disabled) {
+          background: #7C3AED;
+          transform: translateY(-1px);
+          box-shadow: 0 6px 12px rgba(139, 92, 246, 0.3);
+        }
         .nota-pequena {
           font-size: 12px;
           color: #64748b;
@@ -869,6 +941,12 @@ const FuncionarioDashboard = () => {
                                   📄 Ver datos de la oferta
                                 </button>
                                 <button
+                                  onClick={() => handleVerDocumentos(oferta._id)}
+                                  className="btn-documentos"
+                                >
+                                  📁 Ver documentos
+                                </button>
+                                <button
                                   onClick={() => finalizarMatricula(oferta._id)}
                                   disabled={procesandoOfertaId === oferta._id}
                                   className="btn-confirmar"
@@ -886,6 +964,9 @@ const FuncionarioDashboard = () => {
                                 </button>
                                 <button onClick={() => handleVerDatosOferta(oferta)} className="btn-secondary" style={{ background: '#6b7280', color: 'white' }}>
                                   📄 Ver datos
+                                </button>
+                                <button onClick={() => handleVerDocumentos(oferta._id)} className="btn-secondary" style={{ background: '#8B5CF6', color: 'white' }}>
+                                  📁 Ver documentos
                                 </button>
                               </div>
                             )}
@@ -1145,6 +1226,64 @@ const FuncionarioDashboard = () => {
                   {descargandoExcel ? 'Descargando...' : '📥 Descargar Excel'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de documentos adjuntos */}
+      {mostrarModalDocumentos && ofertaDocumentos && (
+        <div className="modal-overlay" onClick={() => setMostrarModalDocumentos(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                📎 Documentos adjuntos - {ofertaDocumentos.programa_formacion?.nombre_programa || 'Oferta'}
+              </h3>
+              <button className="modal-close" onClick={() => setMostrarModalDocumentos(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '16px', color: '#334155' }}>
+                Documentos subidos por el instructor durante la solicitud de validación.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {[
+                  { key: 'ficha', label: 'Ficha', icon: '📄' },
+                  { key: 'carta', label: 'Carta', icon: '📋' },
+                  { key: 'excel', label: 'Excel', icon: '📊' },
+                  { key: 'cedulas', label: 'Cédulas PDF', icon: '📑' }
+                ].map(doc => (
+                  <button
+                    key={doc.key}
+                    onClick={() => descargarArchivoDocumento(ofertaDocumentos._id, doc.key)}
+                    disabled={!documentosData[doc.key]}
+                    style={{
+                      padding: '16px',
+                      borderRadius: '20px',
+                      border: '1.5px solid',
+                      borderColor: documentosData[doc.key] ? '#00643C' : '#e2e8f0',
+                      background: documentosData[doc.key] ? '#f0fdf4' : '#f8fafc',
+                      color: documentosData[doc.key] ? '#00643C' : '#94a3b8',
+                      fontWeight: 700,
+                      cursor: documentosData[doc.key] ? 'pointer' : 'not-allowed',
+                      fontSize: '15px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <span style={{ fontSize: '24px' }}>{doc.icon}</span>
+                    {doc.label}
+                    {documentosData[doc.key] && <span style={{ marginLeft: '8px' }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+              {Object.values(documentosData).every(v => v === false) && (
+                <p style={{ textAlign: 'center', marginTop: '20px', color: '#94a3b8' }}>
+                  No hay documentos disponibles para esta oferta.
+                </p>
+              )}
             </div>
           </div>
         </div>

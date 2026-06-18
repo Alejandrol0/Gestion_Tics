@@ -65,7 +65,6 @@ const SolicitarOferta = () => {
       fd.append('oferta_id', ofertaSeleccionada._id);
       fd.append('mensaje', mensaje);
       Object.entries(archivos).forEach(([k, v]) => { if (v) fd.append(k, v); });
-      // ✅ Ruta corregida
       await api.post('/solicitudes/validacion', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setSuccess('Solicitud enviada correctamente. Tu coordinador recibirá una notificación.');
       setMensaje('');
@@ -82,7 +81,7 @@ const SolicitarOferta = () => {
   const docs = [
     { key: 'ficha',   label: 'Ficha de caracterización',  desc: 'Documento PDF de la ficha' },
     { key: 'carta',   label: 'Carta de solicitud',        desc: 'Carta firmada dirigida al coordinador' },
-    { key: 'excel',   label: 'Listado de inscritos',      desc: 'Archivo Excel con los datos' },
+    { key: 'excel',   label: 'Listado de inscritos',      desc: 'Archivo Excel (.xlsx o .xls)' },
     { key: 'cedulas', label: 'Cédulas de inscritos',      desc: 'Carpeta ZIP o PDF compilado' },
   ];
 
@@ -467,6 +466,7 @@ const SolicitarOferta = () => {
                         type="file"
                         id={`file-${d.key}`}
                         style={{ display: 'none' }}
+                        accept={d.key === 'excel' ? '.xlsx,.xls' : 'application/pdf'}
                         onChange={e => handleArchivo(d.key, e)}
                       />
                       <label
