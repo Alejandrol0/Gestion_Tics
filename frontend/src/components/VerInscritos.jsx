@@ -9,7 +9,14 @@ const VerInscritos = () => {
   const [success, setSuccess] = useState('');
   const [ofertaSeleccionada, setOfertaSeleccionada] = useState(null);
   const [exportando, setExportando] = useState(false);
+  const [exportandoCedulas, setExportandoCedulas] = useState(false);
+  const [descargandoFusion, setDescargandoFusion] = useState(false);
   const [busqueda, setBusqueda] = useState('');
+
+  // Estados para el modal de cédulas (opcional, si quieres mantener la vista previa)
+  const [mostrarModalCedulas, setMostrarModalCedulas] = useState(false);
+  const [cedulasData, setCedulasData] = useState([]);
+  const [cargandoCedulas, setCargandoCedulas] = useState(false);
 
   useEffect(() => {
     cargarOfertas();
@@ -62,6 +69,72 @@ const VerInscritos = () => {
       setError('Error al exportar los datos');
     } finally {
       setExportando(false);
+    }
+  };
+
+  // Función para ver cédulas (abre modal con lista de cédulas)
+  const handleVerCedulas = async () => {
+    if (!ofertaSeleccionada) return;
+    try {
+      setCargandoCedulas(true);
+      setCedulasData(inscritos);
+      setMostrarModalCedulas(true);
+    } catch (error) {
+      console.error('Error cargando cédulas:', error);
+      setError('Error al cargar las cédulas');
+    } finally {
+      setCargandoCedulas(false);
+    }
+  };
+
+  // Descargar Excel de cédulas
+  const descargarExcelCedulas = async () => {
+    if (!ofertaSeleccionada) return;
+    try {
+      setExportandoCedulas(true);
+      const res = await api.get(
+        `/inscripciones/oferta/${ofertaSeleccionada._id}/exportar/cedulas`,
+        { responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', `cedulas_${ofertaSeleccionada.programa_formacion?.codigo}.xlsx`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setSuccess('Excel de cédulas exportado correctamente');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch {
+      setError('Error al exportar el Excel de cédulas');
+    } finally {
+      setExportandoCedulas(false);
+    }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: Descargar PDF fusionado de cédulas
+  const descargarPDFFusionado = async () => {
+    if (!ofertaSeleccionada) return;
+    try {
+      setDescargandoFusion(true);
+      const res = await api.get(
+        `/inscripciones/oferta/${ofertaSeleccionada._id}/fusionar-pdf`,
+        { responseType: 'blob' }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.setAttribute('download', `cedulas_fusionadas_${ofertaSeleccionada.programa_formacion?.codigo}.pdf`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setSuccess('✅ PDF fusionado descargado correctamente');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error(error);
+      setError(error.response?.data?.message || 'Error al generar el PDF fusionado');
+    } finally {
+      setDescargandoFusion(false);
     }
   };
 
@@ -197,6 +270,11 @@ const VerInscritos = () => {
             margin-top: 4px;
             display: block;
           }
+          .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
           .export-btn {
             padding: 10px 24px;
             background: #FFD966;
@@ -214,6 +292,46 @@ const VerInscritos = () => {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
           }
           .export-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          .btn-cedulas {
+            padding: 10px 24px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .btn-cedulas:hover:not(:disabled) {
+            background: #6d28d9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+          }
+          .btn-cedulas:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          .btn-pdf-fusion {
+            padding: 10px 24px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .btn-pdf-fusion:hover:not(:disabled) {
+            background: #b91c1c;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+          }
+          .btn-pdf-fusion:disabled {
             opacity: 0.5;
             cursor: not-allowed;
           }
@@ -311,6 +429,100 @@ const VerInscritos = () => {
           .fecha-cell {
             color: #718096;
           }
+
+          /* Modal (opcional, para vista previa de cédulas) */
+          .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+          }
+          .modal-container {
+            background: white;
+            border-radius: 32px;
+            max-width: 900px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 28px 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+          }
+          .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #eef2f6;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+          }
+          .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #00643C;
+            margin: 0;
+          }
+          .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.2s;
+          }
+          .modal-close:hover {
+            color: #dc2626;
+          }
+          .modal-body {
+            overflow-x: auto;
+          }
+          .modal-body table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+          }
+          .modal-body th {
+            background: #f8fafc;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #2d3748;
+            border-bottom: 2px solid #e2e8f0;
+          }
+          .modal-body td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #edf2f7;
+            color: #334155;
+          }
+          .modal-body tr:hover {
+            background: #f8fafc;
+          }
+          .modal-empty {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+          }
+          .btn-download-excel {
+            background: transparent;
+            border: 1px solid #cbd5e1;
+            border-radius: 40px;
+            padding: 6px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 6px;
+          }
+          .btn-download-excel:hover {
+            background: #f1f5f9;
+            border-color: #00643C;
+          }
+
           @media (max-width: 768px) {
             .ver-inscritos-container {
               padding: 20px 16px;
@@ -326,9 +538,15 @@ const VerInscritos = () => {
               flex-direction: column;
               align-items: flex-start;
             }
-            .export-btn {
+            .btn-group {
               width: 100%;
+            }
+            .export-btn, .btn-cedulas, .btn-pdf-fusion {
+              flex: 1;
               text-align: center;
+            }
+            .modal-container {
+              padding: 20px;
             }
           }
         `}
@@ -378,13 +596,29 @@ const VerInscritos = () => {
                     {ofertaSeleccionada.cupo_maximo}
                   </span>
                 </div>
-                <button
-                  onClick={exportarCompleto}
-                  disabled={exportando || inscritos.length === 0}
-                  className="export-btn"
-                >
-                  {exportando ? 'Exportando…' : 'Exportar Excel'}
-                </button>
+                <div className="btn-group">
+                  <button
+                    onClick={exportarCompleto}
+                    disabled={exportando || inscritos.length === 0}
+                    className="export-btn"
+                  >
+                    {exportando ? 'Exportando…' : '📊 Exportar Excel'}
+                  </button>
+                  <button
+                    onClick={handleVerCedulas}
+                    disabled={cargandoCedulas || inscritos.length === 0}
+                    className="btn-cedulas"
+                  >
+                    {cargandoCedulas ? 'Cargando…' : '🪪 Ver cédulas'}
+                  </button>
+                  <button
+                    onClick={descargarPDFFusionado}
+                    disabled={descargandoFusion || inscritos.length === 0}
+                    className="btn-pdf-fusion"
+                  >
+                    {descargandoFusion ? 'Generando…' : '📄 Fusionar cédulas'}
+                  </button>
+                </div>
               </div>
 
               {inscritos.length > 0 && (
@@ -460,6 +694,61 @@ const VerInscritos = () => {
           )}
         </div>
       </div>
+
+      {/* Modal de cédulas (opcional) */}
+      {mostrarModalCedulas && (
+        <div className="modal-overlay" onClick={() => setMostrarModalCedulas(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                🪪 Cédulas - {ofertaSeleccionada?.programa_formacion?.nombre_programa || 'Oferta'}
+              </h3>
+              <button className="modal-close" onClick={() => setMostrarModalCedulas(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {cedulasData.length === 0 ? (
+                <div className="modal-empty">No hay inscritos para mostrar cédulas.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Tipo Doc.</th>
+                      <th>Número</th>
+                      <th>Nombres</th>
+                      <th>Apellidos</th>
+                      <th>Teléfono</th>
+                      <th>Correo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cedulasData.map((ins, idx) => (
+                      <tr key={ins._id}>
+                        <td>{idx + 1}</td>
+                        <td>{ins.tipo_documento?.nombre || '—'}</td>
+                        <td>{ins.numero_documento}</td>
+                        <td>{ins.nombres}</td>
+                        <td>{ins.apellidos}</td>
+                        <td>{ins.telefono || '—'}</td>
+                        <td>{ins.correo || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <button
+                  className="btn-download-excel"
+                  onClick={descargarExcelCedulas}
+                  disabled={exportandoCedulas || cedulasData.length === 0}
+                >
+                  {exportandoCedulas ? 'Descargando...' : '📥 Descargar Excel de cédulas'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

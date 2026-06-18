@@ -244,6 +244,84 @@ const fusionarPDFsManual = async (req, res) => {
   }
 };
 
+const descargarPDFFusionado = async (req, res) => {
+  try {
+    const { ofertaId } = req.params;
+    const fs = require('fs');
+    const path = require('path');
+    const { fusionarPDFs } = require('../services/pdfMerger');
+
+    // 1. Buscar si ya existe un PDF fusionado en la carpeta
+    const fusionadosDir = path.join(__dirname, '../uploads/fusionados');
+    let archivoFusionado = null;
+
+    if (fs.existsSync(fusionadosDir)) {
+      const archivos = fs.readdirSync(fusionadosDir);
+      // Buscar el más reciente que contenga el ofertaId
+      const posibles = archivos
+        .filter(f => f.includes(ofertaId) && f.endsWith('.pdf'))
+        .map(f => ({ nombre: f, ruta: path.join(fusionadosDir, f), tiempo: fs.statSync(path.join(fusionadosDir, f)).mtimeMs }))
+        .sort((a, b) => b.tiempo - a.tiempo);
+      if (posibles.length > 0) {
+        archivoFusionado = posibles[0].ruta;
+        console.log('📄 PDF fusionado encontrado:', archivoFusionado);
+      }
+    }
+
+    // 2. Si existe, descargarlo directamente
+    if (archivoFusionado && fs.existsSync(archivoFusionado)) {
+      return res.download(archivoFusionado, `cedulas_fusionadas_${ofertaId}.pdf`);
+    }
+
+    // 3. Si no existe fusionado, buscar archivos individuales para fusionar
+    const inscripciones = await Inscripcion.find({
+      oferta_id: ofertaId,
+      pdf_cedula: { $ne: null, $exists: true }
+    });
+
+    if (inscripciones.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No hay cédulas disponibles para fusionar'
+      });
+    }
+
+    const pdfs = inscripciones.map(ins => ({
+      path: ins.pdf_cedula,
+      inscripcionId: ins._id,
+      documento: ins.numero_documento
+    }));
+
+    // Intentar fusionar (puede fallar si los archivos no existen)
+    const resultado = await fusionarPDFs(pdfs, ofertaId);
+
+    if (!resultado.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al fusionar los PDFs. Los archivos individuales pueden haber sido eliminados.'
+      });
+    }
+
+    const archivoPath = resultado.path;
+    if (!fs.existsSync(archivoPath)) {
+      return res.status(500).json({
+        success: false,
+        message: 'El archivo fusionado no se pudo generar'
+      });
+    }
+
+    // 4. Enviar el archivo recién fusionado
+    res.download(archivoPath, `cedulas_fusionadas_${ofertaId}.pdf`);
+
+  } catch (error) {
+    console.error('Error en descargarPDFFusionado:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error al generar el PDF fusionado'
+    });
+  }
+};
+
 // Obtener inscripciones por oferta
 const getInscripcionesPorOferta = async (req, res) => {
   try {
@@ -458,5 +536,6 @@ module.exports = {
   getInscritosPorOferta,  // ← AHORA SÍ ESTÁ DEFINIDA
   exportarExcelCompleto,
   exportarExcelCedulas,
-  fusionarPDFs: fusionarPDFsManual
+  fusionarPDFs: fusionarPDFsManual,
+  descargarPDFFusionado
 };

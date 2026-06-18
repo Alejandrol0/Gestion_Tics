@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Asegurar que la carpeta uploads existe
-const uploadDir = path.join(__dirname, '../uploads/documentos'); // <-- CAMBIADO a subcarpeta documentos
+const uploadDir = path.join(__dirname, '../uploads/documentos'); 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

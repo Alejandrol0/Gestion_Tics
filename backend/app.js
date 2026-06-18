@@ -9,6 +9,7 @@ const coordinadorRoutes = require('./routes/coordinadorRoutes');
 const empresaRoutes = require('./routes/empresaRoutes');
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const solicitudRoutes = require('./routes/solicitudRoutes');
+const estadisticasRoutes = require('./routes/estadisticasRoutes');
 
 const ofertasFuncionarioRoutes = require('./routes/ofertasFuncionarioRoutes');
 const cedulaRoutes = require('./routes/CedulaRoute');
@@ -48,6 +49,7 @@ app.use('/api/coordinadores', coordinadorRoutes);
 app.use('/api/empresas', empresaRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
+app.use('/api/estadisticas', estadisticasRoutes);
 
 app.use('/api/ofertas-funcionario', ofertasFuncionarioRoutes);
 app.use('/api/cedula', cedulaRoutes);

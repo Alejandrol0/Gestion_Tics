@@ -7,7 +7,8 @@ const {
   getInscritosPorOferta,
   exportarExcelCompleto,
   exportarExcelCedulas,
-  fusionarPDFs
+  fusionarPDFs,
+  descargarPDFFusionado
 } = require('../controllers/inscripcionController');
 
 // Ruta para inscripción (pública)
@@ -17,6 +18,6 @@ router.post('/oferta/:codigo', upload.single('pdf_cedula'), inscribir);
 router.get('/oferta/:ofertaId', protect, getInscritosPorOferta);
 router.get('/oferta/:ofertaId/exportar/completo', protect, exportarExcelCompleto);
 router.get('/oferta/:ofertaId/exportar/cedulas', protect, exportarExcelCedulas);
-router.post('/oferta/:ofertaId/fusionar-pdfs', protect, fusionarPDFs); // ← CORREGIDO
+router.get('/oferta/:ofertaId/fusionar-pdf', protect, descargarPDFFusionado);
 
 module.exports = router;
